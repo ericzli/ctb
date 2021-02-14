@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Tony's 错题本</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+        <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+        <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    </head>
+    <body>
+
+        <table width="100%">
+            <tr>
+                <td width="70">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">三
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu" role="menu">
+                            <li><a href="/static/add_wrong_word.html">录入-别字</a></li>
+                            <li class="divider"></li>
+                            <li><a href="#">关于</a></li>
+                        </ul>
+                    </div>
+                </td>
+                <td>
+                    <button type="button" class="btn btn-block btn-success">刷下一题</button>
+                </td>
+            </tr>
+        </table>
+
+        <div id="id_question_choice">
+            <style>
+                #id_question_choice { font-size:50px }
+                #id_question_content>img { padding-bottom: 10px }
+                #id_choices { margin-left: 60px }
+                #id_choices .checkbox input { zoom:350% }
+            </style>
+            <p id="id_question_content"></p>
+            请选择:
+            <form role="form">
+            <div id="id_choices"></div>
+            </form>
+        </div>
+
+        <script>
+            var user = 'tony';
+            $(document).ready(function() {
+                $.ajax({
+                    async : false,
+                    type : "post",
+                    url : "/rest/get_next_question?user="+user,
+                    dataType : "json",
+                    success: function (data) {
+                        $("#id_question_content").html(data.question.replace("??", '<img src="tianzige.png">'));
+                        $("#id_choices").empty();
+                        for (var i = 0; i < data.choices.length; i++){
+                            var html = '<div class="checkbox"><label><input type="checkbox">' + data.choices[i] + '</label></div>';
+                            $("#id_choices").append(html);
+                        }
+                    },
+                    error: function (data) {
+                        alert(data.result);
+                    }
+                });
+            });
+        </script>
+    </body>
+</html>
