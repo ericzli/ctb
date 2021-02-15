@@ -60,11 +60,11 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 	rightAnswer := r.PostFormValue("right_answer")
 	wrongAnswer := r.PostFormValue("wrong_answer")
 
-	if !strings.Contains(question, "??") {
-		panic("Question should contains '??'")
+	if question == "" {
+		panic("question should not be empty")
 	}
 	if rightAnswer == "" || wrongAnswer == "" {
-		panic("Right or wrong answer should not be empty")
+		panic("iight or wrong answer should not be empty")
 	}
 	row := s_DB.QueryRow("select id, wrong_answer from ctb_choice_question where question = ? limit 1", question)
 	questionId := -1

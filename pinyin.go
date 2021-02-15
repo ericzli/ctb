@@ -84,13 +84,11 @@ func ReplaceAllPinyin(in string) string {
 
 	var out string
 	lastE := 0
-	for i, v := range indexArr {
+	for _, v := range indexArr {
 		s, e := v[0], v[1]
 		out += in[lastE:s] + TranslatePinyin(in[s:e])
-		if i == len(indexArr)-1 {
-			out += in[e:]
-		}
 		lastE = e
 	}
+	out += in[lastE:]
 	return out
 }
