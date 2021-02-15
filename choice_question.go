@@ -17,7 +17,7 @@ func checkDb() {
 	if s_DB != nil {
 		return
 	}
-	DB, err := sql.Open("mysql", "ctb:pass@tcp(localhost:3306)/ctb")
+	DB, err := sql.Open("mysql", g_Conf.DbUri)
 	if err != nil || DB == nil {
 		panic(fmt.Sprintf("Connect mysql failed, %v", err))
 	}

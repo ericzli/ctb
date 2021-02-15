@@ -1,9 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 )
+
+var g_Conf struct {
+	ListenAddr string `json:"listen_addr"`
+	DbUri      string `json:"mysql_database"`
+}
 
 func main() {
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
@@ -17,7 +24,17 @@ func main() {
 	http.HandleFunc("/rest/add_wrong_word", handleAddWrongWord)
 	http.HandleFunc("/rest/get_next_question", getNextQuestion)
 
-	err := http.ListenAndServe(":8080", nil)
+	g_Conf.ListenAddr = ":8080"
+	g_Conf.DbUri = "ctb:pass@tcp(localhost:8081)/ctb"
+	b, err := ioutil.ReadFile("conf.json")
+	if err == nil {
+		err = json.Unmarshal(b, &g_Conf)
+		if err != nil {
+			fmt.Println("Unmarshal conf failed:", err)
+		}
+	}
+
+	err = http.ListenAndServe(g_Conf.ListenAddr, nil)
 	if err != nil {
 		fmt.Println("Listen failed:", err)
 	}
