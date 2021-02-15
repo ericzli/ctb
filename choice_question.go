@@ -56,7 +56,7 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	user := r.PostFormValue("user")
-	question := r.PostFormValue("question")
+	question := ReplaceAllPinyin(r.PostFormValue("question"))
 	rightAnswer := r.PostFormValue("right_answer")
 	wrongAnswer := r.PostFormValue("wrong_answer")
 
