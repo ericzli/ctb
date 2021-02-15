@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"runtime/debug"
 	"sort"
 	"strings"
 
@@ -49,6 +50,7 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := recover()
 		if err != nil {
+			debug.PrintStack()
 			w.Write([]byte(fmt.Sprintf("添加失败：%v", err)))
 		}
 	}()
@@ -64,22 +66,64 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 	if rightAnswer == "" || wrongAnswer == "" {
 		panic("Right or wrong answer should not be empty")
 	}
-
-	result, err := s_DB.Exec("insert INTO ctb_choice_question(type,question,right_answer,wrong_answer) values(1,?,?,?)", question, rightAnswer, wrongAnswer)
-	if err != nil {
-		panic(fmt.Sprintf("insert question failed, %v", err))
-	}
-	lastInsertID, err := result.LastInsertId()
-	if err != nil {
-		panic(fmt.Sprintf("get lastInsertID failed, %v", err))
-	}
-	fmt.Println("Insert choice question success, id =", lastInsertID)
-	_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,5,now())", lastInsertID, user)
-	if err != nil {
-		panic(fmt.Sprintf("insert record failed, %v", err))
+	row := s_DB.QueryRow("select id, wrong_answer from ctb_choice_question where question = ? limit 1", question)
+	questionId := -1
+	var oldRightChoice string
+	row.Scan(&questionId, &oldRightChoice)
+	if questionId < 0 {
+		result, err := s_DB.Exec("insert INTO ctb_choice_question(type,question,right_answer,wrong_answer) values(1,?,?,?)", question, rightAnswer, wrongAnswer)
+		if err != nil {
+			panic(fmt.Sprintf("insert question failed, %v", err))
+		}
+		lastInsertID, err := result.LastInsertId()
+		if err != nil {
+			panic(fmt.Sprintf("get lastInsertID failed, %v", err))
+		}
+		fmt.Printf("Insert choice question success, id = %d, user = %s\n", lastInsertID, user)
+		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,5,now())", lastInsertID, user)
+		if err != nil {
+			panic(fmt.Sprintf("insert record failed, %v", err))
+		}
+	} else {
+		// 合并干扰项
+		wrongAnswer = strings.Join(removeRepeatedElement(append(strings.Split(wrongAnswer, ","), strings.Split(oldRightChoice, ",")...)), ",")
+		_, err := s_DB.Exec("update ctb_choice_question set right_answer = ?, wrong_answer = ? where id = ?", rightAnswer, wrongAnswer, questionId)
+		if err != nil {
+			panic(fmt.Sprintf("update question failed, %v", err))
+		}
+		// 如果已存在，就增加额外次数
+		row = s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user = ?", questionId, user)
+		var count int
+		row.Scan(&count)
+		if count > 0 {
+			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5 where question_id = ? and user = ?", questionId, user)
+		} else {
+			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,5,now())", questionId, user)
+		}
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Add to question exists, id = %d, user = %s\n", questionId, user)
 	}
 
 	http.Redirect(w, r, "/static/add_wrong_word.html", http.StatusFound)
+}
+
+func removeRepeatedElement(arr []string) (newArr []string) {
+	newArr = make([]string, 0)
+	for i := 0; i < len(arr); i++ {
+		repeat := false
+		for j := i + 1; j < len(arr); j++ {
+			if arr[i] == arr[j] {
+				repeat = true
+				break
+			}
+		}
+		if !repeat {
+			newArr = append(newArr, arr[i])
+		}
+	}
+	return
 }
 
 func getNextChoiceQuestion(w http.ResponseWriter, r *http.Request) bool {
