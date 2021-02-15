@@ -59,7 +59,7 @@
                             $("#id_question_content").html("任务完成");
                             return;
                         }
-                        $("#id_question_content").html(data.question.replaceAll("??", '<img src="tianzige.png">') + "<br>请选择:");
+                        $("#id_question_content").html(data.question.replace(/\?\?/g, '<img src="tianzige.png">') + "<br>请选择:");
                         for (var i = 0; i < data.choices.length; i++){
                             var html = '<div class="checkbox"><label><input type="checkbox" value="' + data.choices[i] + '">' + data.choices[i] + '</label></div>';
                             $("#id_choices").append(html);
