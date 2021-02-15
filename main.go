@@ -23,6 +23,7 @@ func main() {
 	})
 	http.HandleFunc("/rest/add_wrong_word", handleAddWrongWord)
 	http.HandleFunc("/rest/get_next_question", getNextQuestion)
+	http.HandleFunc("/rest/submit_answer", submitAnswer)
 
 	g_Conf.ListenAddr = ":8080"
 	g_Conf.DbUri = "ctb:pass@tcp(localhost:8081)/ctb"
@@ -44,5 +45,5 @@ func getNextQuestion(w http.ResponseWriter, r *http.Request) {
 	if getNextChoiceQuestion(w, r) {
 		return
 	}
-	w.Write([]byte(`{"question": "已完成所有题目"}`))
+	w.Write([]byte("{}"))
 }

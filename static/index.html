@@ -25,7 +25,7 @@
                     </div>
                 </td>
                 <td>
-                    <button type="button" class="btn btn-block btn-success">刷下一题</button>
+                    <button type="button" class="btn btn-block btn-primary" onclick="location.reload()">刷下一题</button>
                 </td>
             </tr>
         </table>
@@ -33,30 +33,35 @@
         <div id="id_question_choice">
             <style>
                 #id_question_choice { font-size:50px }
+                #id_question_choice button { font-size:50px; padding-left: 40px; padding-right: 40px }
                 #id_question_content>img { padding-bottom: 10px }
                 #id_choices { margin-left: 60px }
                 #id_choices .checkbox input { zoom:350% }
             </style>
             <p id="id_question_content"></p>
-            请选择:
-            <form role="form">
             <div id="id_choices"></div>
-            </form>
+            <button type="button" class="btn btn-success" onclick="submitChoiceAnswer()">提交</button>
+            <label id="id_result_right" class="text-success" hidden>正确</label>
+            <label id="id_result_wrong" class="text-danger" hidden>错误</label>
+            <br/><label id="id_result_detail" class="text-info"></label>
         </div>
 
         <script>
             var user = 'tony';
+            var question_id;
             $(document).ready(function() {
                 $.ajax({
-                    async : false,
-                    type : "post",
                     url : "/rest/get_next_question?user="+user,
                     dataType : "json",
                     success: function (data) {
-                        $("#id_question_content").html(data.question.replace("??", '<img src="tianzige.png">'));
-                        $("#id_choices").empty();
+                        question_id = data.id
+                        if (!data.id) {
+                            $("#id_question_content").html("任务完成");
+                            return;
+                        }
+                        $("#id_question_content").html(data.question.replace("??", '<img src="tianzige.png">') + "<br>请选择:");
                         for (var i = 0; i < data.choices.length; i++){
-                            var html = '<div class="checkbox"><label><input type="checkbox">' + data.choices[i] + '</label></div>';
+                            var html = '<div class="checkbox"><label><input type="checkbox" value="' + data.choices[i] + '">' + data.choices[i] + '</label></div>';
                             $("#id_choices").append(html);
                         }
                     },
@@ -65,6 +70,25 @@
                     }
                 });
             });
+
+            function submitChoiceAnswer() {
+                var chosen = "";
+                $("#id_choices input:checked").each(function() {
+                    chosen += $(this).attr("value") + ","
+                });
+                if (chosen.length == 0) return;
+                chosen = chosen.substr(0, chosen.length - 1);
+                $("#id_question_choice button").attr("disabled","disabled");
+                $.ajax({
+                    url : "/rest/submit_answer?id="+question_id+"&user="+user+"&chosen="+chosen,
+                    dataType : "json",
+                    success: function (data) {
+                        if (data.correct) $("#id_result_right").show();
+                        else $("#id_result_wrong").show();
+                        $("#id_result_detail").html(data.detail);
+                    }
+                });
+            }
         </script>
     </body>
 </html>
