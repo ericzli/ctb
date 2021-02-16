@@ -14,7 +14,7 @@
             <tr>
                 <td width="70">
                     <div class="btn-group" style="margin-right: 20px">
-                        <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown"><label id="id_current_user">三</label>
+                        <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">三
                             <span class="caret"></span>
                         </button>
                         <ul class="dropdown-menu" role="menu">
@@ -27,8 +27,11 @@
                 </td>
                 <td>
                     <button type="button" class="btn btn-block btn-primary" onclick="location.reload()">刷下一题
-                        <label id="id_progress">(0)</label>
+                        <label id="id_progress"></label>
                     </button>
+                </td>
+                <td width="10px" style="padding-left:5px; max-width:100px">
+                    <label id="id_current_user"></label>
                 </td>
             </tr>
         </table>
@@ -55,7 +58,7 @@
             else location.href = "/static/user.html";
             var question_id;
             $(document).ready(function() {
-                $("#id_current_user").html(user);
+                $("#id_current_user").html("["+user+"]");
                 $.ajax({
                     url : "/rest/get_next_question?user="+user,
                     dataType : "json",

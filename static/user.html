@@ -12,9 +12,9 @@
     <body>
         <form role="form" style="margin: 10px">
             <div class="form-group">
-                <label for="id_user">用户名(只支持字母和数字)<span style="color: red">*</span></label>
+                <label for="id_user">用户名<span style="color: red">*</span></label>
                 <input type="text" class="form-control" id="id_user" required
-                placeholder="若用户名不存在则自动注册">
+                placeholder="只支持字母和数字，不超过16字符" onKeyUp="value=value.replace(/[\W]/g,'')" maxlength="16">
                 <br>注：
                 <li>若用户名不存在则自动注册</li>
                 <li>没有密码，所以用户名不要太简单，以免与他人重复</li>
