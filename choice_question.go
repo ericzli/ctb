@@ -126,15 +126,9 @@ func removeRepeatedElement(arr []string) (newArr []string) {
 	return
 }
 
-func getNextChoiceQuestion(w http.ResponseWriter, r *http.Request) bool {
+func getNextChoiceQuestion(w http.ResponseWriter, r *http.Request) (int, interface{}) {
 	checkDb()
 	user := r.FormValue("user")
-	row := s_DB.QueryRow("select question_id from ctb_answer_record where user = ? and now() > next_time order by next_time limit 1", user)
-	questionId := -1
-	if err := row.Scan(&questionId); err != nil || questionId < 0 {
-		return false
-	}
-	row = s_DB.QueryRow("select question, right_answer, wrong_answer from ctb_choice_question where id = ?", questionId)
 	var rsp struct {
 		Id          int      `json:"id"`
 		Question    string   `json:"question"`
@@ -142,19 +136,23 @@ func getNextChoiceQuestion(w http.ResponseWriter, r *http.Request) bool {
 		RightAnswer string
 		WrongAnswer string
 	}
-	var rightAnswer, wrongAnswer string
-	if err := row.Scan(&rsp.Question, &rightAnswer, &wrongAnswer); err != nil {
-		panic(fmt.Sprintf("question %d not exists", questionId))
+
+	row := s_DB.QueryRow("select question_id from ctb_answer_record where user = ? and now() > next_time order by next_time limit 1", user)
+	if err := row.Scan(&rsp.Id); err != nil {
+		return 0, nil
 	}
-	rsp.Id = questionId
-	rsp.Choices = append(strings.Split(rightAnswer, ","), strings.Split(wrongAnswer, ",")...)
+	row = s_DB.QueryRow("select count(0) from ctb_answer_record where user = ? and now() > next_time", user)
+	var restCount int
+	if err := row.Scan(&restCount); err != nil {
+		panic("get rest count failed")
+	}
+	row = s_DB.QueryRow("select question, right_answer, wrong_answer from ctb_choice_question where id = ?", rsp.Id)
+	if err := row.Scan(&rsp.Question, &rsp.RightAnswer, &rsp.WrongAnswer); err != nil {
+		panic(fmt.Sprintf("question %d not exists", rsp.Id))
+	}
+	rsp.Choices = append(strings.Split(rsp.RightAnswer, ","), strings.Split(rsp.WrongAnswer, ",")...)
 	shuffleStrings(rsp.Choices)
-	b, err := json.Marshal(&rsp)
-	if err != nil {
-		panic(fmt.Sprintf("marshal json failed: %v", err))
-	}
-	w.Write(b)
-	return true
+	return restCount, rsp
 }
 
 func shuffleStrings(cards []string) {
