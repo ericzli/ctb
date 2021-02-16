@@ -131,7 +131,7 @@ func removeRepeatedElement(arr []string) (newArr []string) {
 	return
 }
 
-func getNextChoiceQuestion(w http.ResponseWriter, r *http.Request) (int, interface{}) {
+func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
 	checkDb()
 	user := r.FormValue("user")
 	var rsp struct {
@@ -168,6 +168,34 @@ func shuffleStrings(cards []string) {
 		j = rand.Intn(size-i) + i
 		cards[i], cards[j] = cards[j], cards[i]
 	}
+}
+
+func getLearningChoiceQuestions(r *http.Request) []interface{} {
+	checkDb()
+	user := r.FormValue("user")
+	result := []interface{}{}
+
+	rows, err := s_DB.Query("select question_id, question, rest_cnt from ctb_answer_record, ctb_choice_question where id = question_id and user = ? limit 1000", user)
+	if rows != nil {
+		defer rows.Close()
+	}
+	if err != nil {
+		panic("query learning question list from db failed")
+	}
+	for rows.Next() {
+		var id, cnt int
+		var question string
+		err = rows.Scan(&id, &question, &cnt)
+		if err != nil {
+			panic(fmt.Sprintf("scan failed: %v", err))
+		}
+		result = append(result, &struct {
+			Id        int    `json:"id"`
+			Question  string `json:"question"`
+			RestCount int    `json:"rest_count"`
+		}{id, question, cnt})
+	}
+	return result
 }
 
 func submitAnswer(w http.ResponseWriter, r *http.Request) {

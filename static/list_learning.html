@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Tony's 错题本</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+        <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+        <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    </head>
+    <body>
+        <a class="btn btn-default" href="/" role="button">返回</a>
+        <table class="table table-striped">
+            <caption>学习中的错题</caption>
+            <thead>
+                <tr>
+                    <th>题号</th>
+                    <th>题目</th>
+                    <th>剩余次数</th>
+                </tr>
+            </thead>
+            <tbody id="id_table">
+                <tr><td>加载中...</td></tr>
+            </tbody>
+        </table>
+        <script>
+            $(document).ready(function() {
+                var cookies = document.cookie.split(";")[0].split("=");
+                var user = "";
+                if (cookies.length == 2 && cookies[0] == 'user') user = cookies[1];
+                $.ajax({
+                    url : "/rest/list_learning?user="+user,
+                    dataType : "json",
+                    success: function (data) {
+                        $("#id_table").empty();
+                        for (var i = 0; i < data.questions.length; i++) {
+                            var line = '<td>'+data.questions[i].id+'</td>';
+                            line += '<td>'+data.questions[i].question+'</td>'
+                            line += '<td>'+data.questions[i].rest_count+'</td>'
+                            $("#id_table").append('<tr>'+line+'</tr>');
+                        }
+                    }
+                });
+            });
+        </script>
+    </body>
+</html>
