@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -59,6 +60,10 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 	question := ReplaceAllPinyin(r.PostFormValue("question"), "??(", ")")
 	rightAnswer := strings.Replace(strings.Replace(r.PostFormValue("right_answer"), "，", ",", -1), " ", ",", -1)
 	wrongAnswer := strings.Replace(strings.Replace(r.PostFormValue("wrong_answer"), "，", ",", -1), " ", ",", -1)
+	restCount, err := strconv.Atoi(r.PostFormValue("rest_count"))
+	if err != nil || restCount < 0 {
+		panic("invalid rest_count")
+	}
 
 	if question == "" {
 		panic("question should not be empty")
@@ -80,7 +85,7 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 			panic(fmt.Sprintf("get lastInsertID failed, %v", err))
 		}
 		fmt.Printf("Insert choice question success, id = %d, user = %s\n", lastInsertID, user)
-		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,5,now())", lastInsertID, user)
+		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user, restCount)
 		if err != nil {
 			panic(fmt.Sprintf("insert record failed, %v", err))
 		}
@@ -96,9 +101,9 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 		var count int
 		row.Scan(&count)
 		if count > 0 {
-			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5 where question_id = ? and user = ?", questionId, user)
+			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + ? where question_id = ? and user = ?", restCount, questionId, user)
 		} else {
-			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,5,now())", questionId, user)
+			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", questionId, user, restCount)
 		}
 		if err != nil {
 			panic(err)
