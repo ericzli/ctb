@@ -210,7 +210,7 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 				fmt.Printf("clear answer record failed, %v\n", err)
 			}
 		} else {
-			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = date_add(now(), interval 1 minute) where question_id = ? and user = ?",
+			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now() where question_id = ? and user = ?",
 				id, user)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
