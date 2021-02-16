@@ -56,9 +56,9 @@ func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	user := r.PostFormValue("user")
-	question := ReplaceAllPinyin(r.PostFormValue("question"))
-	rightAnswer := r.PostFormValue("right_answer")
-	wrongAnswer := r.PostFormValue("wrong_answer")
+	question := strings.Replace(ReplaceAllPinyin(r.PostFormValue("question")), "？", "?", -1)
+	rightAnswer := strings.Replace(strings.Replace(r.PostFormValue("right_answer"), "，", ",", -1), " ", ",", -1)
+	wrongAnswer := strings.Replace(strings.Replace(r.PostFormValue("wrong_answer"), "，", ",", -1), " ", ",", -1)
 
 	if question == "" {
 		panic("question should not be empty")
