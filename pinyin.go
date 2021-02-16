@@ -78,15 +78,16 @@ func TranslatePinyin(in string) string {
 	return string(buf[:i])
 }
 
-func ReplaceAllPinyin(in string) string {
-	reg := regexp.MustCompile("[a-z]+[1-4]")
+// prefix表示在替换时在拼音前加的前缀（比如加个田字格）
+func ReplaceAllPinyin(in, prefix, suffix string) string {
+	reg := regexp.MustCompile("[a-z]+[0-4|]")
 	indexArr := reg.FindAllStringIndex(in, -1)
 
 	var out string
 	lastE := 0
 	for _, v := range indexArr {
 		s, e := v[0], v[1]
-		out += in[lastE:s] + TranslatePinyin(in[s:e])
+		out += in[lastE:s] + prefix + TranslatePinyin(in[s:e]) + suffix
 		lastE = e
 	}
 	out += in[lastE:]

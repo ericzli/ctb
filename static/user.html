@@ -23,13 +23,15 @@
             <a class="btn btn-default" href="/" role="button">返回</a>
         </form>
         <br/>
-        <label id="id_current_user" style="margin-left: 10px"></label>
-        <button id="id_copy">复制登录链接</button> (访问链接即自动登录，用于家庭内分享)
+        <div id="id_current_user" style="margin-left: 10px" hidden>
+            <label></label>
+            <button id="id_copy">复制登录链接</button> (访问链接即自动登录，用于家庭内分享)
+        </div>
         <script>
             $(document).ready(function() {
                 var cookies = document.cookie.split(";")[0].split("=");
                 if (cookies.length == 2 && cookies[0] == 'user') {
-                    $("#id_current_user").html("当前登录用户："+cookies[1]);
+                    $("#id_current_user label").html("已登录："+cookies[1]);
                     $("#id_submit").html("注册/切换用户");
                     // 计算链接
                     var curWwwPath = window.document.location.href;
@@ -40,6 +42,7 @@
                     // 复制到剪贴板
                     new ClipboardJS("#id_copy");
                     $("#id_copy").attr("data-clipboard-text", copyPath)
+                    $("#id_current_user").show();
                 }
             });
 
