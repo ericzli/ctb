@@ -57,6 +57,7 @@
                         question_id = data.id
                         if (!data.id) {
                             $("#id_question_content").html("任务完成");
+                            $("#id_question_choice>button").attr("disabled","disabled");
                             return;
                         }
                         $("#id_question_content").html(data.question.replace(/\?\?/g, '<img src="tianzige.png">') + "<br>请选择:");
