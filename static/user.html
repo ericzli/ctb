@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Tony's 错题本</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+        <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+        <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    </head>
+    <body>
+        <form role="form" style="margin: 10px">
+            <div class="form-group">
+                <label for="id_user">用户名(只支持字母和数字)<span style="color: red">*</span></label>
+                <input type="text" class="form-control" id="id_user" required
+                placeholder="若用户名不存在则自动注册">
+                <label id="id_current_user"></label>
+                <br>注：
+                <li>若用户名不存在则自动注册</li>
+                <li>没有密码，所以用户名不要太简单，以免与他人重复</li>
+            </div>
+            <button type="submit" id="id_submit" class="btn btn-default btn-success" onclick="registerOrLogin()">注册/登录</button>
+            <a class="btn btn-default" href="/" role="button">返回</a>
+        </form>
+        <script>
+            $(document).ready(function() {
+                var cookies = document.cookie.split(";")[0].split("=");
+                if (cookies.length == 2 && cookies[0] == 'user') {
+                    $("#id_current_user").html("当前登录用户："+cookies[1]);
+                    $("#id_submit").html("注册/切换用户");
+                }
+            });
+            function registerOrLogin() {
+                var exp = new Date();
+                exp.setTime(exp.getTime() + 30*24*60*60*1000);
+                document.cookie = "user="+$("#id_user").val()+";expires="+exp.toGMTString();
+            }
+        </script>
+    </body>
+</html>

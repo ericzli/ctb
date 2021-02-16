@@ -13,13 +13,14 @@
         <table width="100%">
             <tr>
                 <td width="70">
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">三
+                    <div class="btn-group" style="margin-right: 20px">
+                        <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown"><label id="id_current_user">三</label>
                             <span class="caret"></span>
                         </button>
                         <ul class="dropdown-menu" role="menu">
                             <li><a href="/static/add_wrong_word.html">录入-别字</a></li>
                             <li class="divider"></li>
+                            <li><a href="/static/user.html">用户</a></li>
                             <li><a href="/static/about.html">关于</a></li>
                         </ul>
                     </div>
@@ -49,9 +50,12 @@
         </div>
 
         <script>
-            var user = 'tony';
+            var cookies = document.cookie.split(";")[0].split("=");
+            if (cookies.length == 2 && cookies[0] == 'user') user = cookies[1];
+            else location.href = "/static/user.html";
             var question_id;
             $(document).ready(function() {
+                $("#id_current_user").html(user);
                 $.ajax({
                     url : "/rest/get_next_question?user="+user,
                     dataType : "json",
