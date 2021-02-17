@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"runtime/debug"
 	"sort"
-	"strconv"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -46,72 +46,91 @@ CREATE TABLE `ctb_answer_record` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 */
 
-func handleAddWrongWord(w http.ResponseWriter, r *http.Request) {
+func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 	checkDb()
 	defer func() {
 		err := recover()
+		var rsp struct {
+			Result string `json:"result"`
+		}
 		if err != nil {
 			debug.PrintStack()
-			w.Write([]byte(fmt.Sprintf("添加失败：%v", err)))
+			rsp.Result = fmt.Sprintf("add failed: %v", err)
+		} else {
+			rsp.Result = "ok"
 		}
+		encoder := json.NewEncoder(w)
+		encoder.Encode(&rsp)
 	}()
 
-	user := r.PostFormValue("user")
-	question := ReplaceAllPinyin(r.PostFormValue("question"), "??(", ")")
-	rightAnswer := strings.Replace(strings.Replace(r.PostFormValue("right_answer"), "，", ",", -1), " ", ",", -1)
-	wrongAnswer := strings.Replace(strings.Replace(r.PostFormValue("wrong_answer"), "，", ",", -1), " ", ",", -1)
-	restCount, err := strconv.Atoi(r.PostFormValue("rest_count"))
-	if err != nil || restCount < 0 {
+	user := r.FormValue("user")
+
+	body, err := ioutil.ReadAll(r.Body)
+	check(err)
+
+	var req struct {
+		Type        int      `json:"type"`
+		Question    string   `json:"question"`
+		RightAnswer []string `json:"right_answer"`
+		WrongAnswer []string `json:"wrong_answer"`
+		RestCount   int      `json:"rest_count"`
+	}
+	check(json.Unmarshal(body, &req))
+
+	if req.Type == 1 { // 别字题需要将拼音换成田字格
+		req.Question = ReplaceAllPinyin(req.Question, "??(", ")")
+	}
+	if req.RestCount < 0 || req.RestCount > 1000 {
 		panic("invalid rest_count")
 	}
 
-	if question == "" {
-		panic("question should not be empty")
+	if req.Question == "" || len(req.RightAnswer) == 0 {
+		panic("question or right answer should not be empty")
 	}
-	if rightAnswer == "" || wrongAnswer == "" {
-		panic("iight or wrong answer should not be empty")
+
+	for i, v := range req.RightAnswer {
+		req.RightAnswer[i] = strings.Replace(v, ",", "，", -1) // 半角逗号用于分隔符，所以原本的半角逗号都替换成全角的
 	}
-	row := s_DB.QueryRow("select id, wrong_answer from ctb_choice_question where question = ? limit 1", question)
+	for i, v := range req.WrongAnswer {
+		req.WrongAnswer[i] = strings.Replace(v, ",", "，", -1)
+	}
+	rightAnswer := strings.Join(req.RightAnswer, ",")
+	wrongAnswer := strings.Join(req.WrongAnswer, ",")
+
+	// 检查问题是否已存在
 	questionId := -1
 	var oldRightChoice string
-	row.Scan(&questionId, &oldRightChoice)
+	if req.Type == 1 {
+		row := s_DB.QueryRow("select id, wrong_answer from ctb_choice_question where question = ? limit 1", req.Question)
+		row.Scan(&questionId, &oldRightChoice)
+	}
 	if questionId < 0 {
-		result, err := s_DB.Exec("insert INTO ctb_choice_question(type,question,right_answer,wrong_answer) values(1,?,?,?)", question, rightAnswer, wrongAnswer)
-		if err != nil {
-			panic(fmt.Sprintf("insert question failed, %v", err))
-		}
+		// 如果不存在则添加新题
+		result, err := s_DB.Exec("insert INTO ctb_choice_question(type,question,right_answer,wrong_answer) values(?,?,?,?)",
+			req.Type, req.Question, rightAnswer, wrongAnswer)
+		checkf(err, "insert question failed")
 		lastInsertID, err := result.LastInsertId()
-		if err != nil {
-			panic(fmt.Sprintf("get lastInsertID failed, %v", err))
-		}
+		checkf(err, "get lastInsertID failed")
 		fmt.Printf("Insert choice question success, id = %d, user = %s\n", lastInsertID, user)
-		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user, restCount)
-		if err != nil {
-			panic(fmt.Sprintf("insert record failed, %v", err))
-		}
+		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user, req.RestCount)
+		checkf(err, "insert record failed")
 	} else {
-		// 合并干扰项
+		// 如果已存在则合并干扰项
 		wrongAnswer = strings.Join(removeRepeatedElement(append(strings.Split(wrongAnswer, ","), strings.Split(oldRightChoice, ",")...)), ",")
 		_, err := s_DB.Exec("update ctb_choice_question set right_answer = ?, wrong_answer = ? where id = ?", rightAnswer, wrongAnswer, questionId)
-		if err != nil {
-			panic(fmt.Sprintf("update question failed, %v", err))
-		}
-		// 如果已存在，就增加额外次数
-		row = s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user = ?", questionId, user)
+		checkf(err, "update question failed")
+		// 如果当前正在学习此题，就增加额外次数
+		row := s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user = ?", questionId, user)
 		var count int
 		row.Scan(&count)
 		if count > 0 {
-			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + ? where question_id = ? and user = ?", restCount, questionId, user)
+			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + ? where question_id = ? and user = ?", req.RestCount, questionId, user)
 		} else {
-			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", questionId, user, restCount)
+			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", questionId, user, req.RestCount)
 		}
-		if err != nil {
-			panic(err)
-		}
+		check(err)
 		fmt.Printf("Add to question exists, id = %d, user = %s\n", questionId, user)
 	}
-
-	http.Redirect(w, r, "/static/add_wrong_word.html", http.StatusFound)
 }
 
 func removeRepeatedElement(arr []string) (newArr []string) {
@@ -136,6 +155,7 @@ func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
 	user := r.FormValue("user")
 	var rsp struct {
 		Id          int      `json:"id"`
+		Type        int      `json:"type"`
 		Question    string   `json:"question"`
 		Choices     []string `json:"choices"`
 		RightAnswer string
@@ -151,8 +171,8 @@ func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
 	if err := row.Scan(&restCount); err != nil {
 		panic("get rest count failed")
 	}
-	row = s_DB.QueryRow("select question, right_answer, wrong_answer from ctb_choice_question where id = ?", rsp.Id)
-	if err := row.Scan(&rsp.Question, &rsp.RightAnswer, &rsp.WrongAnswer); err != nil {
+	row = s_DB.QueryRow("select type, question, right_answer, wrong_answer from ctb_choice_question where id = ?", rsp.Id)
+	if err := row.Scan(&rsp.Type, &rsp.Question, &rsp.RightAnswer, &rsp.WrongAnswer); err != nil {
 		panic(fmt.Sprintf("question %d not exists", rsp.Id))
 	}
 	rsp.Choices = append(strings.Split(rsp.RightAnswer, ","), strings.Split(rsp.WrongAnswer, ",")...)

@@ -21,7 +21,7 @@ func main() {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	})
-	http.HandleFunc("/rest/add_wrong_word", handleAddWrongWord)
+	http.HandleFunc("/rest/add_choice_question", handleAddChoiceQuestion)
 	http.HandleFunc("/rest/get_next_question", getNextQuestion)
 	http.HandleFunc("/rest/list_learning", listLearningQuestion)
 	http.HandleFunc("/rest/submit_answer", submitAnswer)
@@ -45,12 +45,10 @@ func main() {
 func getNextQuestion(w http.ResponseWriter, r *http.Request) {
 	var rsp struct {
 		RestCount    int         `json:"rest_count"`
-		QuestionType int         `json:"question_type"`
 		QuestionInfo interface{} `json:"question_info"`
 	}
 	cnt, questionInfo := getNextChoiceQuestion(r)
 	if rsp.RestCount == 0 && cnt > 0 {
-		rsp.QuestionType = 1
 		rsp.QuestionInfo = questionInfo
 	}
 	rsp.RestCount += cnt
