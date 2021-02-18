@@ -10,18 +10,18 @@
         <script src="/static/thirdparty/clipboard.min.js"></script>
     </head>
     <body>
-        <form role="form" style="margin: 10px">
+        <div style="margin: 10px">
             <div class="form-group">
                 <label for="id_user">用户名<span style="color: red">*</span></label>
                 <input type="text" class="form-control" id="id_user" required
-                placeholder="只支持字母和数字，不超过16字符" onKeyUp="value=value.replace(/[\W]/g,'')" maxlength="16">
+                placeholder="只支持字母和数字，不超过64字符" onKeyUp="value=value.replace(/[\W]/g,'')" maxlength="64">
                 <br>注：
                 <li>若用户名不存在则自动注册</li>
                 <li>没有密码，所以用户名不要太简单，以免与他人重复</li>
             </div>
-            <button type="submit" id="id_submit" class="btn btn-default btn-success" onclick="registerOrLogin()">注册/登录</button>
+            <button id="id_submit" class="btn btn-default btn-success" onclick="registerOrLogin()" hidden>注册/登录</button>
             <button class="btn btn-default btn-primary" onclick="location.href='/'">返回首页</button>
-        </form>
+        </div>
         <br/>
         <div id="id_current_user" style="margin-left: 10px" hidden>
             <label></label>
@@ -46,14 +46,29 @@
                 } else {
                     $(".btn-primary").attr("disabled", "disabled");
                 }
+                $("#id_submit").show();
             });
 
             function registerOrLogin() {
                 var user = $("#id_user").val();
-                if (!user) return;
+                if (!user) {
+                    alert("用户名不能为空");
+                    return;
+                }
                 var exp = new Date();
                 exp.setTime(exp.getTime() + 30*24*60*60*1000);
                 document.cookie = "user="+user+";expires="+exp.toGMTString();
+                $.ajax({
+                    url : "/rest/register_or_login?user="+user,
+                    dataType : "json",
+                    success: function (data) {
+                        if (data.result != "ok") {
+                            alert(data.result)
+                            return;
+                        }
+                        location.href = "/";
+                    }
+                });
             }
 
             function getQueryVariable(variable) {

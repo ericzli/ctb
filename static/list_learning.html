@@ -32,6 +32,10 @@
                     url : "/rest/list_learning?user="+user,
                     dataType : "json",
                     success: function (data) {
+                        if (data.result != "ok") {
+                            alert(data.result)
+                            return;
+                        }
                         $("#id_table").empty();
                         for (var i = 0; i < data.questions.length; i++) {
                             var line = '<td>'+data.questions[i].id+'</td>';

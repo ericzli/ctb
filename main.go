@@ -21,6 +21,7 @@ func main() {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	})
+	http.HandleFunc("/rest/register_or_login", handleRegisterOrLogin)
 	http.HandleFunc("/rest/add_choice_question", handleAddChoiceQuestion)
 	http.HandleFunc("/rest/get_next_question", getNextQuestion)
 	http.HandleFunc("/rest/list_learning", listLearningQuestion)
@@ -35,6 +36,7 @@ func main() {
 			fmt.Println("Unmarshal conf failed:", err)
 		}
 	}
+	initDb(g_Conf.DbUri)
 
 	err = http.ListenAndServe(g_Conf.ListenAddr, nil)
 	if err != nil {
@@ -43,7 +45,10 @@ func main() {
 }
 
 func getNextQuestion(w http.ResponseWriter, r *http.Request) {
+	defer errRecover4Rest(w)
+
 	var rsp struct {
+		Result       string      `json:"result"`
 		RestCount    int         `json:"rest_count"`
 		QuestionInfo interface{} `json:"question_info"`
 	}
@@ -55,6 +60,7 @@ func getNextQuestion(w http.ResponseWriter, r *http.Request) {
 
 	// get other type of questions ...
 
+	rsp.Result = "ok"
 	b, err := json.Marshal(&rsp)
 	if err != nil {
 		panic(fmt.Sprintf("marshal json failed: %v", err))
@@ -63,10 +69,14 @@ func getNextQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func listLearningQuestion(w http.ResponseWriter, r *http.Request) {
+	defer errRecover4Rest(w)
+
 	var rsp struct {
+		Result    string        `json:"result"`
 		Questions []interface{} `json:"questions"`
 	}
 	rsp.Questions = append(rsp.Questions, getLearningChoiceQuestions(r)...)
+	rsp.Result = "ok"
 	b, err := json.Marshal(&rsp)
 	if err != nil {
 		panic(fmt.Sprintf("marshal json failed: %v", err))

@@ -66,6 +66,10 @@
                     url : "/rest/get_next_question?user="+user,
                     dataType : "json",
                     success: function (data) {
+                        if (data.result != "ok") {
+                            alert(data.result)
+                            return;
+                        }
                         $("#id_progress").html("(剩余:"+data.rest_count+")");
                         if (!data.rest_count) {
                             $("#id_question_content").html("任务完成");
@@ -98,6 +102,10 @@
                     url : "/rest/submit_answer?id="+question_id+"&user="+user+"&chosen="+chosen,
                     dataType : "json",
                     success: function (data) {
+                        if (data.result != "ok") {
+                            alert(data.result)
+                            return;
+                        }
                         if (data.correct) $("#id_result_right").show();
                         else $("#id_result_wrong").show();
                         $("#id_result_detail").html(data.detail);

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -14,42 +13,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var s_DB *sql.DB
-
-func checkDb() {
-	if s_DB != nil {
-		return
-	}
-	DB, err := sql.Open("mysql", g_Conf.DbUri)
-	if err != nil || DB == nil {
-		panic(fmt.Sprintf("Connect mysql failed, %v", err))
-	}
-	s_DB = DB
-}
-
-/*
-CREATE TABLE `ctb_choice_question` (
-	`id` int(11) NOT NULL AUTO_INCREMENT,
-	`type` bigint(20) NOT NULL,
-	`question` varchar(256) NOT NULL,
-	`right_answer` varchar(256) NOT NULL,
-	`wrong_answer` varchar(256) NOT NULL,
-	PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=utf8;
-
-CREATE TABLE `ctb_answer_record` (
-	`question_id` int(11) NOT NULL,
-	`user` char(16) NOT NULL,
-	`rest_cnt` int(11) NOT NULL,
-	`next_time` datetime NOT NULL,
-	`right_cnt` int(11) DEFAULT '0',
-	`wrong_cnt` int(11) DEFAULT '0',
-	PRIMARY KEY (`question_id`,`user`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
-*/
-
 func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
-	checkDb()
 	defer func() {
 		err := recover()
 		var rsp struct {
@@ -65,7 +29,7 @@ func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 		encoder.Encode(&rsp)
 	}()
 
-	user := r.FormValue("user")
+	user_id := getUserId(r)
 
 	body, err := ioutil.ReadAll(r.Body)
 	check(err)
@@ -113,8 +77,8 @@ func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 		checkf(err, "insert question failed")
 		lastInsertID, err := result.LastInsertId()
 		checkf(err, "get lastInsertID failed")
-		fmt.Printf("Insert choice question success, id = %d, user = %s\n", lastInsertID, user)
-		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user, req.RestCount)
+		fmt.Printf("Insert choice question success, id = %d, user = %d\n", lastInsertID, user_id)
+		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user_id,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user_id, req.RestCount)
 		checkf(err, "insert record failed")
 	} else {
 		// 如果已存在则合并干扰项
@@ -122,16 +86,16 @@ func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 		_, err := s_DB.Exec("update ctb_choice_question set right_answer = ?, wrong_answer = ? where id = ?", rightAnswer, wrongAnswer, questionId)
 		checkf(err, "update question failed")
 		// 如果当前正在学习此题，就增加额外次数
-		row := s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user = ? and rest_cnt > 0", questionId, user)
+		row := s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user_id = ? and rest_cnt > 0", questionId, user_id)
 		var count int
 		row.Scan(&count)
 		if count > 0 {
-			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + ? where question_id = ? and user = ?", req.RestCount, questionId, user)
+			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + ? where question_id = ? and user_id = ?", req.RestCount, questionId, user_id)
 		} else {
-			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user,rest_cnt,next_time) values(?,?,?,now())", questionId, user, req.RestCount)
+			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user_id,rest_cnt,next_time) values(?,?,?,now())", questionId, user_id, req.RestCount)
 		}
 		check(err)
-		fmt.Printf("Add to question exists, id = %d, user = %s\n", questionId, user)
+		fmt.Printf("Add to question exists, id = %d, user = %d\n", questionId, user_id)
 	}
 }
 
@@ -153,8 +117,7 @@ func removeRepeatedElement(arr []string) (newArr []string) {
 }
 
 func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
-	checkDb()
-	user := r.FormValue("user")
+	user_id := getUserId(r)
 	var rsp struct {
 		Id          int      `json:"id"`
 		Type        int      `json:"type"`
@@ -164,11 +127,11 @@ func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
 		WrongAnswer string
 	}
 
-	row := s_DB.QueryRow("select question_id from ctb_answer_record where user = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1", user)
+	row := s_DB.QueryRow("select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1", user_id)
 	if err := row.Scan(&rsp.Id); err != nil {
 		return 0, nil
 	}
-	row = s_DB.QueryRow("select count(0) from ctb_answer_record where user = ? and now() > next_time and rest_cnt > 0", user)
+	row = s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", user_id)
 	var restCount int
 	if err := row.Scan(&restCount); err != nil {
 		panic("get rest count failed")
@@ -193,12 +156,11 @@ func shuffleStrings(cards []string) {
 }
 
 func getLearningChoiceQuestions(r *http.Request) []interface{} {
-	checkDb()
-	user := r.FormValue("user")
+	user_id := getUserId(r)
 	result := []interface{}{}
 
 	rows, err := s_DB.Query(`select question_id, question, rest_cnt from ctb_answer_record, ctb_choice_question
-		where id = question_id and user = ? and rest_cnt > 0 limit 1000`, user)
+		where id = question_id and user_id = ? and rest_cnt > 0 limit 1000`, user_id)
 	if rows != nil {
 		defer rows.Close()
 	}
@@ -222,9 +184,10 @@ func getLearningChoiceQuestions(r *http.Request) []interface{} {
 }
 
 func submitAnswer(w http.ResponseWriter, r *http.Request) {
-	checkDb()
+	defer errRecover4Rest(w)
+
 	id := r.FormValue("id")
-	user := r.FormValue("user")
+	user_id := getUserId(r)
 	chosen := strings.Split(r.FormValue("chosen"), ",")
 	sort.Strings(chosen)
 	row := s_DB.QueryRow("select right_answer from ctb_choice_question where id = ?", id)
@@ -233,6 +196,7 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 	correct := strings.Split(correctAnswer, ",")
 	sort.Strings(correct)
 	var rsp struct {
+		Result  string `json:"result"`
 		Correct bool   `json:"correct"`
 		Detail  string `json:"detail"`
 	}
@@ -244,6 +208,7 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	rsp.Result = "ok"
 	rsp.Detail = fmt.Sprintf("答案：%s", correctAnswer)
 	b, err := json.Marshal(&rsp)
 	checkf(err, "marshal json failed")
@@ -268,13 +233,13 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 					when 12 then 30
 					when 13 then 12
 					else 5 end
-				) minute), right_cnt = right_cnt + 1 where question_id = ? and user = ?`, id, user)
+				) minute), right_cnt = right_cnt + 1 where question_id = ? and user_id = ?`, id, user_id)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
 			}
 		} else {
-			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now(), wrong_cnt = wrong_cnt + 1 where question_id = ? and user = ?",
-				id, user)
+			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now(), wrong_cnt = wrong_cnt + 1 where question_id = ? and user_id = ?",
+				id, user_id)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
 			}
