@@ -112,6 +112,11 @@
                     }
                 });
             }
+
+            // 只要经常用，则cookie一直有效
+            var exp = new Date();
+            exp.setTime(exp.getTime() + 30*24*60*60*1000);
+            document.cookie = "user="+user+";expires="+exp.toGMTString();
         </script>
     </body>
 </html>
