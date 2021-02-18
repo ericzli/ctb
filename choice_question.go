@@ -42,8 +42,10 @@ CREATE TABLE `ctb_answer_record` (
 	`user` char(16) NOT NULL,
 	`rest_cnt` int(11) NOT NULL,
 	`next_time` datetime NOT NULL,
+	`right_cnt` int(11) DEFAULT '0',
+	`wrong_cnt` int(11) DEFAULT '0',
 	PRIMARY KEY (`question_id`,`user`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
 */
 
 func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
@@ -266,12 +268,12 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 					when 12 then 30
 					when 13 then 12
 					else 5 end
-				) minute) where question_id = ? and user = ?`, id, user)
+				) minute), right_cnt = right_cnt + 1 where question_id = ? and user = ?`, id, user)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
 			}
 		} else {
-			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now() where question_id = ? and user = ?",
+			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now(), wrong_cnt = wrong_cnt + 1 where question_id = ? and user = ?",
 				id, user)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
