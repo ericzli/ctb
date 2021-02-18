@@ -226,9 +226,7 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 	sort.Strings(chosen)
 	row := s_DB.QueryRow("select right_answer from ctb_choice_question where id = ?", id)
 	var correctAnswer string
-	if err := row.Scan(&correctAnswer); err != nil {
-		panic("question not exist")
-	}
+	checkf(row.Scan(&correctAnswer), "question not exist")
 	correct := strings.Split(correctAnswer, ",")
 	sort.Strings(correct)
 	var rsp struct {
@@ -245,16 +243,29 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 	}
 	rsp.Detail = fmt.Sprintf("答案：%s", correctAnswer)
 	b, err := json.Marshal(&rsp)
-	if err != nil {
-		panic(fmt.Sprintf("marshal json failed: %v", err))
-	}
+	checkf(err, "marshal json failed")
 	w.Write(b)
 
 	// 另起协程让页面响应更快
 	go func() {
 		if rsp.Correct {
-			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt - 1, next_time = date_add(now(), interval 12 hour) where question_id = ? and user = ?",
-				id, user)
+			// 按记忆曲线更新下次学习的时间
+			_, err := s_DB.Exec(`update ctb_answer_record set rest_cnt = rest_cnt - 1, next_time = date_add(now(), interval (case rest_cnt
+					when 1 then 90*24*60
+					when 2 then 45*24*60
+					when 3 then 20*24*60
+					when 4 then 10*24*60
+					when 5 then 5*24*60
+					when 6 then 2*24*60
+					when 7 then 24*60
+					when 8 then 10*60
+					when 9 then 5*60
+					when 10 then 2*60
+					when 11 then 60
+					when 12 then 30
+					when 13 then 12
+					else 5 end
+				) minute) where question_id = ? and user = ?`, id, user)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
 			}
