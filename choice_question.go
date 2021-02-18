@@ -120,7 +120,7 @@ func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 		_, err := s_DB.Exec("update ctb_choice_question set right_answer = ?, wrong_answer = ? where id = ?", rightAnswer, wrongAnswer, questionId)
 		checkf(err, "update question failed")
 		// 如果当前正在学习此题，就增加额外次数
-		row := s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user = ?", questionId, user)
+		row := s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user = ? and rest_cnt > 0", questionId, user)
 		var count int
 		row.Scan(&count)
 		if count > 0 {
@@ -162,11 +162,11 @@ func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
 		WrongAnswer string
 	}
 
-	row := s_DB.QueryRow("select question_id from ctb_answer_record where user = ? and now() > next_time order by next_time limit 1", user)
+	row := s_DB.QueryRow("select question_id from ctb_answer_record where user = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1", user)
 	if err := row.Scan(&rsp.Id); err != nil {
 		return 0, nil
 	}
-	row = s_DB.QueryRow("select count(0) from ctb_answer_record where user = ? and now() > next_time", user)
+	row = s_DB.QueryRow("select count(0) from ctb_answer_record where user = ? and now() > next_time and rest_cnt > 0", user)
 	var restCount int
 	if err := row.Scan(&restCount); err != nil {
 		panic("get rest count failed")
@@ -195,7 +195,8 @@ func getLearningChoiceQuestions(r *http.Request) []interface{} {
 	user := r.FormValue("user")
 	result := []interface{}{}
 
-	rows, err := s_DB.Query("select question_id, question, rest_cnt from ctb_answer_record, ctb_choice_question where id = question_id and user = ? limit 1000", user)
+	rows, err := s_DB.Query(`select question_id, question, rest_cnt from ctb_answer_record, ctb_choice_question
+		where id = question_id and user = ? and rest_cnt > 0 limit 1000`, user)
 	if rows != nil {
 		defer rows.Close()
 	}
@@ -268,10 +269,6 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 				) minute) where question_id = ? and user = ?`, id, user)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
-			}
-			_, err = s_DB.Exec("delete from ctb_answer_record where question_id = ? and rest_cnt <= 0", id)
-			if err != nil {
-				fmt.Printf("clear answer record failed, %v\n", err)
 			}
 		} else {
 			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now() where question_id = ? and user = ?",
