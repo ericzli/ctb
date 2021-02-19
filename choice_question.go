@@ -147,7 +147,7 @@ func getLearningChoiceQuestions(r *http.Request) []interface{} {
 	user_id := getUserId(r)
 	result := []interface{}{}
 
-	rows, err := s_DB.Query(`select question_id, question, rest_cnt from ctb_answer_record, ctb_choice_question
+	rows, err := s_DB.Query(`select question_id, question, rest_cnt, right_cnt, wrong_cnt from ctb_answer_record, ctb_choice_question
 		where id = question_id and user_id = ? and rest_cnt > 0 limit 1000`, user_id)
 	if rows != nil {
 		defer rows.Close()
@@ -156,17 +156,19 @@ func getLearningChoiceQuestions(r *http.Request) []interface{} {
 		panic("query learning question list from db failed")
 	}
 	for rows.Next() {
-		var id, cnt int
+		var id, cnt, right, wrong int
 		var question string
-		err = rows.Scan(&id, &question, &cnt)
+		err = rows.Scan(&id, &question, &cnt, &right, &wrong)
 		if err != nil {
 			panic(fmt.Sprintf("scan failed: %v", err))
 		}
 		result = append(result, &struct {
-			Id        int    `json:"id"`
-			Question  string `json:"question"`
-			RestCount int    `json:"rest_count"`
-		}{id, question, cnt})
+			Id         int    `json:"id"`
+			Question   string `json:"question"`
+			RestCount  int    `json:"rest_count"`
+			RightCount int    `json:"right_count"`
+			WrongCount int    `json:"wrong_count"`
+		}{id, question, cnt, right, wrong})
 	}
 	return result
 }

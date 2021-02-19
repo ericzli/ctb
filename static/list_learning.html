@@ -14,9 +14,11 @@
             <caption>学习中的错题</caption>
             <thead>
                 <tr>
-                    <th>题号</th>
+                    <th>ID</th>
                     <th>题目</th>
-                    <th>剩余次数</th>
+                    <th>剩余</th>
+                    <th>正确</th>
+                    <th>错误</th>
                 </tr>
             </thead>
             <tbody id="id_table">
@@ -41,6 +43,8 @@
                             var line = '<td>'+data.questions[i].id+'</td>';
                             line += '<td>'+data.questions[i].question+'</td>'
                             line += '<td>'+data.questions[i].rest_count+'</td>'
+                            line += '<td>'+data.questions[i].right_count+'</td>'
+                            line += '<td>'+data.questions[i].wrong_count+'</td>'
                             $("#id_table").append('<tr>'+line+'</tr>');
                         }
                     }
