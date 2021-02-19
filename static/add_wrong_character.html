@@ -4,7 +4,7 @@
         <title>Tony's 错题本</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">
         <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
         <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
     </head>
@@ -12,18 +12,14 @@
         <center><h2 id="id_title"></h2></center>
         <div style="margin: 10px">
             <div class="form-group">
-                <label for="id_question">题干<span style="color: red">*</span></label>
-                <input type="text" class="form-control" id="id_question" name="question" placeholder="如：where的意思是？">
-                <br><label>选项(打勾表示正确选项)</label>
-                <ul id="id_options">
-                    <li>
-                        <input type="checkbox" checked>
-                        <input type="text" placeholder="如：在哪儿">
-                    </li>
-                </ul>
-                <button class="btn btn-default btn-primary" style="margin:10px" onclick="addOption()">添加选项</button>
-                <br><label for="id_rest_count">初始剩余次数</label>
-                <input type="text" id="id_rest_count" value="5" onkeyup="this.value=this.value.replace(/\D/g,'')" maxlength=3>
+                <label for="id_question">题干(用数字表示声调，v代替ü)<span style="color: red">*</span></label>
+                <input type="text" class="form-control" id="id_question" placeholder="如：风吹草低xian4牛羊">
+                <label for="id_right_word">正确的答案<span style="color: red">*</span></label>
+                <input type="text" class="form-control" id="id_right_word" placeholder="如：见">
+                <label for="id_wrong_word">干扰项(多个用空格分隔)<span style="color: red">*</span></label>
+                <input type="text" class="form-control" id="id_wrong_word" placeholder="如：现 线">
+                <label for="id_rest_count">初始剩余次数</label>
+                <input type="text" class="form-control" id="id_rest_count" value="5" onkeyup="this.value=this.value.replace(/\D/g,'')" maxlength=3>
             </div>
             <button class="btn btn-default btn-success" onclick="submit()">提交</button>
             <a class="btn btn-default" href="/" role="button">返回</a>
@@ -34,28 +30,19 @@
                 var cookies = document.cookie.split(";")[0].split("=");
                 if (cookies.length == 2 && cookies[0] == 'user') user = cookies[1];
                 else location.href = "/static/user.html";
-                $("#id_title").html("为"+cookies[1]+"添加选择题");
+                $("#id_title").html("为"+cookies[1]+"添加错别字题目");
             });
 
             function submit() {
-                var rightAnswer = new Array();
-                var wrongAnswer = new Array();
-                $("#id_options>li").each(function() {
-                    var option = $(this).children(":text").val();
-                    if (option) {
-                        if ($(this).children(":checkbox").is(":checked")) rightAnswer.push(option);
-                        else wrongAnswer.push(option);
-                    }
-                });
                 $.ajax({
                     type: "POST",
                     url : "/rest/add_choice_question?user="+user,
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
-                        "add_type": "text",
+                        "add_type": "wrong_character",
                         "question": $("#id_question").val(),
-                        "right_answer": rightAnswer,
-                        "wrong_answer": wrongAnswer,
+                        "right_answer": [$("#id_right_word").val()],
+                        "wrong_answer": $("#id_wrong_word").val().split(" "),
                         "rest_count": Number($("#id_rest_count").val())
                     }),
                     dataType: "json",
@@ -63,17 +50,13 @@
                         if (data.result != "ok") {
                             alert(data.result)
                         } else {
-                            location.href = "/static/add_choice_question_text.html"
+                            location.href = "/static/add_wrong_character.html"
                         }
                     },
                     error: function (data) {
                         alert(data.result);
                     }
                 });
-            }
-
-            function addOption() {
-                $("#id_options").append('<li><input type="checkbox"> <input type="text"></li>');
             }
         </script>
     </body>

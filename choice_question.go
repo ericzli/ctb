@@ -35,68 +35,56 @@ func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 	check(err)
 
 	var req struct {
-		Type        int      `json:"type"`
+		AddType     string   `json:"add_type"`
 		Question    string   `json:"question"`
 		RightAnswer []string `json:"right_answer"`
 		WrongAnswer []string `json:"wrong_answer"`
 		RestCount   int      `json:"rest_count"`
 	}
 	check(json.Unmarshal(body, &req))
-
-	if req.Type == 1 { // 别字题需要将拼音换成田字格
-		req.Question = ReplaceAllPinyin(req.Question, "??(", ")")
-	}
 	if req.RestCount < 0 || req.RestCount > 1000 {
 		panic("invalid rest_count")
 	}
-
 	if req.Question == "" || len(req.RightAnswer) == 0 {
 		panic("question or right answer should not be empty")
 	}
 
+	// 半角逗号用于分隔符，所以原本的半角逗号都替换成全角的
 	for i, v := range req.RightAnswer {
-		req.RightAnswer[i] = strings.Replace(v, ",", "，", -1) // 半角逗号用于分隔符，所以原本的半角逗号都替换成全角的
+		req.RightAnswer[i] = strings.Replace(v, ",", "，", -1)
 	}
 	for i, v := range req.WrongAnswer {
 		req.WrongAnswer[i] = strings.Replace(v, ",", "，", -1)
 	}
-	rightAnswer := strings.Join(req.RightAnswer, ",")
-	wrongAnswer := strings.Join(req.WrongAnswer, ",")
 
-	// 检查问题是否已存在
-	questionId := -1
-	var oldRightChoice string
-	if req.Type == 1 {
-		row := s_DB.QueryRow("select id, wrong_answer from ctb_choice_question where question = ? limit 1", req.Question)
-		row.Scan(&questionId, &oldRightChoice)
+	question, rightAnswer, wrongAnswer := processByAddType(req.AddType, req.Question, req.RightAnswer, req.WrongAnswer)
+
+	result, err := s_DB.Exec("insert INTO ctb_choice_question(type,question,right_answer,wrong_answer) values(1,?,?,?)",
+		question, rightAnswer, wrongAnswer)
+	checkf(err, "insert question failed")
+	lastInsertID, err := result.LastInsertId()
+	checkf(err, "get lastInsertID failed")
+	fmt.Printf("Insert choice question success, id = %d, user = %d\n", lastInsertID, user_id)
+	_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user_id,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user_id, req.RestCount)
+	checkf(err, "insert record failed")
+}
+
+func processByAddType(addType, oriQuestion string, oriRightAnswer, oriWrongAnswer []string) (question, rightAnswer, wrongAnswer string) {
+	rightAnswer = strings.Join(oriRightAnswer, ",")
+	wrongAnswer = strings.Join(oriWrongAnswer, ",")
+
+	switch addType {
+	case "wrong_character":
+		question = ReplaceAllPinyin(oriQuestion, "??(", ")")
+	case "wrong_pinyin":
+		question = "给括号里的字注音：" + question
+		rightAnswer = ReplaceAllPinyin(rightAnswer, "", "")
+		wrongAnswer = ReplaceAllPinyin(wrongAnswer, "", "")
+	case "text":
+	default:
+		panic("unknown add_type: " + addType)
 	}
-	if questionId < 0 {
-		// 如果不存在则添加新题
-		result, err := s_DB.Exec("insert INTO ctb_choice_question(type,question,right_answer,wrong_answer) values(?,?,?,?)",
-			req.Type, req.Question, rightAnswer, wrongAnswer)
-		checkf(err, "insert question failed")
-		lastInsertID, err := result.LastInsertId()
-		checkf(err, "get lastInsertID failed")
-		fmt.Printf("Insert choice question success, id = %d, user = %d\n", lastInsertID, user_id)
-		_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user_id,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user_id, req.RestCount)
-		checkf(err, "insert record failed")
-	} else {
-		// 如果已存在则合并干扰项
-		wrongAnswer = strings.Join(removeRepeatedElement(append(strings.Split(wrongAnswer, ","), strings.Split(oldRightChoice, ",")...)), ",")
-		_, err := s_DB.Exec("update ctb_choice_question set right_answer = ?, wrong_answer = ? where id = ?", rightAnswer, wrongAnswer, questionId)
-		checkf(err, "update question failed")
-		// 如果当前正在学习此题，就增加额外次数
-		row := s_DB.QueryRow("select count(0) from ctb_answer_record where question_id = ? and user_id = ? and rest_cnt > 0", questionId, user_id)
-		var count int
-		row.Scan(&count)
-		if count > 0 {
-			_, err = s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + ? where question_id = ? and user_id = ?", req.RestCount, questionId, user_id)
-		} else {
-			_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user_id,rest_cnt,next_time) values(?,?,?,now())", questionId, user_id, req.RestCount)
-		}
-		check(err)
-		fmt.Printf("Add to question exists, id = %d, user = %d\n", questionId, user_id)
-	}
+	return
 }
 
 func removeRepeatedElement(arr []string) (newArr []string) {

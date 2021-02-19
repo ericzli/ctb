@@ -4,7 +4,7 @@
         <title>Tony's 错题本</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+        <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">
         <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
         <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
     </head>
@@ -12,12 +12,12 @@
         <center><h2 id="id_title"></h2></center>
         <div style="margin: 10px">
             <div class="form-group">
-                <label for="id_question">题干(用数字表示声调，v代替ü)<span style="color: red">*</span></label>
-                <input type="text" class="form-control" id="id_question" placeholder="如：风吹草低xian4牛羊">
+                <label for="id_question">题干(用括号指定要注音的字)<span style="color: red">*</span></label>
+                <input type="text" class="form-control" id="id_question" placeholder="如：风吹草低(见)牛羊">
                 <label for="id_right_word">正确的答案<span style="color: red">*</span></label>
-                <input type="text" class="form-control" id="id_right_word" placeholder="如：见">
+                <input type="text" class="form-control" id="id_right_word" placeholder="如：xian4">
                 <label for="id_wrong_word">干扰项(多个用空格分隔)<span style="color: red">*</span></label>
-                <input type="text" class="form-control" id="id_wrong_word" placeholder="如：现,线">
+                <input type="text" class="form-control" id="id_wrong_word" placeholder="如：jian4 xian3">
                 <label for="id_rest_count">初始剩余次数</label>
                 <input type="text" class="form-control" id="id_rest_count" value="5" onkeyup="this.value=this.value.replace(/\D/g,'')" maxlength=3>
             </div>
@@ -30,7 +30,7 @@
                 var cookies = document.cookie.split(";")[0].split("=");
                 if (cookies.length == 2 && cookies[0] == 'user') user = cookies[1];
                 else location.href = "/static/user.html";
-                $("#id_title").html("为"+cookies[1]+"添加错别字题目");
+                $("#id_title").html("为"+cookies[1]+"添加注音题目");
             });
 
             function submit() {
@@ -39,7 +39,7 @@
                     url : "/rest/add_choice_question?user="+user,
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
-                        "type": 1,
+                        "add_type": "wrong_pinyin",
                         "question": $("#id_question").val(),
                         "right_answer": [$("#id_right_word").val()],
                         "wrong_answer": $("#id_wrong_word").val().split(" "),
@@ -50,7 +50,7 @@
                         if (data.result != "ok") {
                             alert(data.result)
                         } else {
-                            location.href = "/static/add_wrong_word.html"
+                            location.href = "/static/add_wrong_pinyin.html"
                         }
                     },
                     error: function (data) {
