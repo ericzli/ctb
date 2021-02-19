@@ -219,19 +219,15 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 		if rsp.Correct {
 			// 按记忆曲线更新下次学习的时间
 			_, err := s_DB.Exec(`update ctb_answer_record set rest_cnt = rest_cnt - 1, next_time = date_add(now(), interval (case rest_cnt
-					when 1 then 90*24*60
-					when 2 then 45*24*60
-					when 3 then 20*24*60
-					when 4 then 10*24*60
-					when 5 then 5*24*60
-					when 6 then 2*24*60
-					when 7 then 24*60
-					when 8 then 10*60
-					when 9 then 5*60
-					when 10 then 2*60
-					when 11 then 60
-					when 12 then 30
-					when 13 then 12
+					when 1 then 14*24*60
+					when 2 then 5*24*60
+					when 3 then 2*24*60
+					when 4 then 24*60
+					when 5 then 12*60
+					when 6 then 10*60
+					when 7 then 3*60
+					when 8 then 60
+					when 9 then 20
 					else 5 end
 				) minute), right_cnt = right_cnt + 1 where question_id = ? and user_id = ?`, id, user_id)
 			if err != nil {
