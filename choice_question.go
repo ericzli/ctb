@@ -115,14 +115,19 @@ func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
 		WrongAnswer string
 	}
 
-	row := s_DB.QueryRow("select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1", user_id)
-	if err := row.Scan(&rsp.Id); err != nil {
-		return 0, nil
-	}
-	row = s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", user_id)
+	row := s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", user_id)
 	var restCount int
 	if err := row.Scan(&restCount); err != nil {
 		panic("get rest count failed")
+	}
+	if restCount > 10 {
+		row = s_DB.QueryRow(`select * from (select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0
+			order by next_time limit 10) a order by rand() limit 1`, user_id)
+	} else {
+		row = s_DB.QueryRow(`select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1`, user_id)
+	}
+	if err := row.Scan(&rsp.Id); err != nil {
+		return 0, nil
 	}
 	row = s_DB.QueryRow("select type, question, right_answer, wrong_answer from ctb_choice_question where id = ?", rsp.Id)
 	if err := row.Scan(&rsp.Type, &rsp.Question, &rsp.RightAnswer, &rsp.WrongAnswer); err != nil {
