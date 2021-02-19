@@ -77,7 +77,7 @@ func processByAddType(addType, oriQuestion string, oriRightAnswer, oriWrongAnswe
 	case "wrong_character":
 		question = ReplaceAllPinyin(oriQuestion, "??(", ")")
 	case "wrong_pinyin":
-		question = "注音：" + question
+		question = "注音：" + oriQuestion
 		rightAnswer = ReplaceAllPinyin(rightAnswer, "", "")
 		wrongAnswer = ReplaceAllPinyin(wrongAnswer, "", "")
 	case "text":
