@@ -7,6 +7,7 @@
         <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
         <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
         <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+        <script src="thirdparty/vue.min.js"></script>
     </head>
     <body>
 
@@ -30,13 +31,9 @@
                     </div>
                 </td>
                 <td>
-                    <button type="button" class="btn btn-block btn-primary" onclick="location.reload()">刷下一题
-                        <label id="id_progress"></label>
-                    </button>
+                    <button type="button" class="btn btn-block btn-primary" onclick="location.reload()">刷下一题 (剩余:{{rest_count}})</button>
                 </td>
-                <td width="10px" style="padding-left:5px; max-width:100px">
-                    <label id="id_current_user"></label>
-                </td>
+                <td width="10px" style="padding-left:5px; max-width:100px"><label>[{{user}}]</label></td>
             </tr>
         </table>
 
@@ -57,21 +54,36 @@
         </div>
 
         <script>
-            var cookies = document.cookie.split(";")[0].split("=");
-            if (cookies.length == 2 && cookies[0] == 'user') user = cookies[1];
-            else location.href = "/static/user.html";
+            var vm = new Vue({
+                el: "body",
+                data: {
+                    rest_count: "加载中...",
+                    user: "",
+                },
+                methods: {
+                }
+            });
+
             var question_id;
             $(document).ready(function() {
-                $("#id_current_user").html("["+user+"]");
+                // 获取用户名
+                var cookies = document.cookie.split(";")[0].split("=");
+                if (cookies.length == 2 && cookies[0] == 'user') vm.user = cookies[1];
+                else location.href = "/static/user.html";
+                // 只要经常用，则cookie一直有效
+                var exp = new Date();
+                exp.setTime(exp.getTime() + 30*24*60*60*1000);
+                document.cookie = "user="+vm.user+";expires="+exp.toGMTString();
+
                 $.ajax({
-                    url : "/rest/get_next_question?user="+user,
+                    url : "/rest/get_next_question?user="+vm.user,
                     dataType : "json",
                     success: function (data) {
                         if (data.result != "ok") {
                             alert(data.result)
                             return;
                         }
-                        $("#id_progress").html("(剩余:"+data.rest_count+")");
+                        vm.rest_count = data.rest_count;
                         if (!data.rest_count) {
                             $("#id_question_content").html("任务完成");
                             $("#id_question_choice>button").attr("disabled","disabled");
@@ -100,7 +112,7 @@
                 chosen = chosen.substr(0, chosen.length - 1);
                 $("#id_question_choice button").attr("disabled","disabled");
                 $.ajax({
-                    url : "/rest/submit_answer?id="+question_id+"&user="+user+"&chosen="+chosen,
+                    url : "/rest/submit_answer?id="+question_id+"&user="+vm.user+"&chosen="+chosen,
                     dataType : "json",
                     success: function (data) {
                         if (data.result != "ok") {
@@ -113,11 +125,6 @@
                     }
                 });
             }
-
-            // 只要经常用，则cookie一直有效
-            var exp = new Date();
-            exp.setTime(exp.getTime() + 30*24*60*60*1000);
-            document.cookie = "user="+user+";expires="+exp.toGMTString();
         </script>
     </body>
 </html>

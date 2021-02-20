@@ -55,9 +55,7 @@
                     alert("用户名不能为空");
                     return;
                 }
-                var exp = new Date();
-                exp.setTime(exp.getTime() + 30*24*60*60*1000);
-                document.cookie = "user="+user+";expires="+exp.toGMTString();
+                document.cookie = "user="+user;
                 $.ajax({
                     url : "/rest/register_or_login?user="+user,
                     dataType : "json",
@@ -81,9 +79,7 @@
                 return(false);
             }
             if (getQueryVariable("user")) {
-                var exp = new Date();
-                exp.setTime(exp.getTime() + 30*24*60*60*1000);
-                document.cookie = "user="+getQueryVariable("user")+";expires="+exp.toGMTString();
+                document.cookie = "user="+getQueryVariable("user");
                 location.href = "/";
             }
         </script>
