@@ -81,6 +81,7 @@ func processByAddType(addType, oriQuestion string, oriRightAnswer, oriWrongAnswe
 		rightAnswer = ReplaceAllPinyin(rightAnswer, "", "")
 		wrongAnswer = ReplaceAllPinyin(wrongAnswer, "", "")
 	case "text":
+		question = oriQuestion
 	default:
 		panic("unknown add_type: " + addType)
 	}

@@ -42,7 +42,7 @@
                         "add_type": "wrong_character",
                         "question": $("#id_question").val(),
                         "right_answer": [$("#id_right_word").val()],
-                        "wrong_answer": $("#id_wrong_word").val().split(" "),
+                        "wrong_answer": $("#id_wrong_word").val().replace(new RegExp('，',"g")," ").split(" "),
                         "rest_count": Number($("#id_rest_count").val())
                     }),
                     dataType: "json",

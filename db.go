@@ -32,7 +32,7 @@ CREATE TABLE `ctb_user` (
 	`id` int(11) NOT NULL AUTO_INCREMENT,
 	`user` char(64) NOT NULL,
 	PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
 CREATE TABLE `ctb_answer_record` (
 	`question_id` int(11) NOT NULL,
@@ -43,5 +43,5 @@ CREATE TABLE `ctb_answer_record` (
 	`wrong_cnt` int(11) DEFAULT '0',
 	PRIMARY KEY (`question_id`,`user_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
-partition by hash(user_id) partitions 3
+partition by hash(user_id) partitions 3;
 */
