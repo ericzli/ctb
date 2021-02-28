@@ -30,9 +30,7 @@
                         </ul>
                     </div>
                 </td>
-                <td>
-                    <button type="button" class="btn btn-block btn-primary" onclick="location.reload()">刷下一题 (剩余:{{rest_count}})</button>
-                </td>
+                <td><button class="btn btn-block btn-primary" onclick="location.reload()">刷新 (剩余:{{rest_count}})</button></td>
                 <td width="10px" style="padding-left:5px; max-width:100px"><label>[{{user}}]</label></td>
             </tr>
         </table>
@@ -41,30 +39,45 @@
             <style>
                 #id_question_choice { font-size:30px }
                 #id_question_choice button { font-size:30px; padding-left: 40px; padding-right: 40px }
-                #id_question_content>img { padding-bottom: 10px; }
-                #id_choices { margin-left: 40px }
+                #id_question_content>img { padding-bottom: 10px }
+                #id_choices .checkbox label { padding-left: 50px }
                 #id_choices .checkbox input { zoom:200% }
             </style>
-            <p id="id_question_content"></p>
-            <div id="id_choices"></div>
-            <button type="button" class="btn btn-success" onclick="submitChoiceAnswer()">提交</button>
-            <label id="id_result_right" class="text-success" hidden>正确</label>
-            <label id="id_result_wrong" class="text-danger" hidden>错误</label>
-            <br/><label id="id_result_detail" class="text-info"></label>
+            <p v-show="rest_count==0 && !b_loading">任务完成</p>
+            <p v-show="cur.id==0 && b_loading">加载中...</p>
+            <div v-show="cur.id">
+                <p id="id_question_content"></p>
+                <div id="id_choices">
+                    <div class="checkbox" v-bind:class="{'bg-success': option.val && cur.b_answered}" v-for="option in cur.options">
+                        <label><input type="checkbox" onchange="onCheck()" value="{{option.val}}">{{option.str}}</label>
+                    </div> 
+                </div>
+                <button :disabled="cur.b_answered || !cur.sel_cnt" class="btn btn-success" onclick="submitAnswer()">提交</button>
+                <label v-show="cur.b_answered && cur.b_right" class="text-success">正确</label>
+                <label v-show="cur.b_answered && !cur.b_right" class="text-danger">错误</label>
+                <button v-show="cur.b_answered" class="btn" onclick="nextQuestion()">下题</button>
+            </div>
         </div>
 
         <script>
             var vm = new Vue({
-                el: "body",
+                el: "body", methods: {},
                 data: {
-                    rest_count: "加载中...",
+                    rest_count: "",
                     user: "",
-                },
-                methods: {
+                    questions: [],
+                    b_loading: false,
+                    cur: {
+                        id: 0,
+                        sel_cnt: 0,
+                        options: [],
+                        b_answered: false,
+                        b_right: false,
+                    },
+                    last_submit: 0,
                 }
             });
 
-            var question_id;
             $(document).ready(function() {
                 // 获取用户名
                 var cookies = document.cookie.split(";")[0].split("=");
@@ -75,55 +88,85 @@
                 exp.setTime(exp.getTime() + 30*24*60*60*1000);
                 document.cookie = "user="+vm.user+";expires="+exp.toGMTString();
 
-                $.ajax({
-                    url : "/rest/get_next_question?user="+vm.user,
-                    dataType : "json",
-                    success: function (data) {
-                        if (data.result != "ok") {
-                            alert(data.result)
-                            return;
-                        }
-                        vm.rest_count = data.rest_count;
-                        if (!data.rest_count) {
-                            $("#id_question_content").html("任务完成");
-                            $("#id_question_choice>button").attr("disabled","disabled");
-                            return;
-                        }
-                        var info = data.question_info;
-                        question_id = info.id
-                        $("#id_question_content").html(info.question.replace(/\?\?/g, '<img src="tianzige.png">') + "<br>请选择:");
-                        for (var i = 0; i < info.choices.length; i++){
-                            var html = '<div class="checkbox"><label><input type="checkbox" value="' + info.choices[i] + '">' + info.choices[i] + '</label></div>';
-                            $("#id_choices").append(html);
-                        }
-                    },
-                    error: function (data) {
-                        alert(data.result);
-                    }
-                });
+                getNewQuestion(2);
             });
 
-            function submitChoiceAnswer() {
-                var chosen = "";
-                $("#id_choices input:checked").each(function() {
-                    chosen += $(this).attr("value") + ","
-                });
-                if (chosen.length == 0) return;
-                chosen = chosen.substr(0, chosen.length - 1);
-                $("#id_question_choice button").attr("disabled","disabled");
+            function getNewQuestion(count) {
+                if (vm.b_loading) return;
+                vm.b_loading = true;
                 $.ajax({
-                    url : "/rest/submit_answer?id="+question_id+"&user="+vm.user+"&chosen="+chosen,
+                    url : "/rest/get_next_questions?user="+vm.user+"&count="+count,
+                    dataType : "json",
+                    success: function (data) {
+                        if (data.result != "ok") { alert(data.result); return; }
+                        vm.rest_count = data.rest_count;
+                        data.questions.forEach(function(v){
+                            var found = false;
+                            vm.questions.forEach((a)=>{if(a.id==v.id)found=true});
+                            if (!found && v.id != vm.last_submit) vm.questions.push(v);
+                        });
+                        if (vm.cur.id == 0) getNextQuestionFromCache();
+                    },
+                    error: function (data) { alert(data.result); },
+                    complete: function(data) { vm.b_loading = false; }
+                });
+            }
+
+            function getNextQuestionFromCache() {
+                if (vm.questions.length == 0) {
+                    vm.cur.id = 0;
+                    return;
+                }
+                vm.cur.b_answered = false;
+                var first = vm.questions.shift();
+                vm.cur.id = first.id;
+                $("#id_question_content").html(first.question.replace(/\?\?/g, '<img src="tianzige.png">') + "<br>请选择:");
+                var options = [];
+                first.right_options.forEach((v)=>{options.push({val: true, str: v})});
+                first.wrong_options.forEach((v)=>{options.push({val: false, str: v})});
+                options.shuffle();
+                vm.cur.options = options;
+            }
+
+            function onCheck() {
+                vm.cur.sel_cnt = $("#id_choices input:checked").length;
+            }
+
+            function submitAnswer() {
+                vm.cur.b_right = true;
+                $("#id_choices input").each(function() {
+                    if ((this.value == "true") != this.checked) {
+                        vm.cur.b_right= false;
+                    }
+                });
+                vm.cur.b_answered = true;
+                vm.last_submit = vm.cur.id;
+                $.ajax({
+                    url : "/rest/submit_answer?id="+vm.cur.id+"&user="+vm.user+"&chosen="+chosen,
                     dataType : "json",
                     success: function (data) {
                         if (data.result != "ok") {
                             alert(data.result)
                             return;
                         }
-                        if (data.correct) $("#id_result_right").show();
-                        else $("#id_result_wrong").show();
-                        $("#id_result_detail").html(data.detail);
+                        if (data.correct != vm.cur.b_right) alert("前后台答案不一致");
                     }
                 });
+            }
+
+            function nextQuestion() {
+                if (vm.cur.b_right) vm.rest_count--;
+                getNextQuestionFromCache();
+                if (vm.questions.length < 5) getNewQuestion(10);
+            }
+
+            Array.prototype.shuffle = function() {
+                let array = this;
+                let len = array.length;
+                for (let i = len - 1; i > 0; i--) {
+                    let j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
             }
         </script>
     </body>

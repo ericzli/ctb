@@ -24,6 +24,7 @@ func main() {
 	http.HandleFunc("/rest/register_or_login", handleRegisterOrLogin)
 	http.HandleFunc("/rest/add_choice_question", handleAddChoiceQuestion)
 	http.HandleFunc("/rest/get_next_question", getNextQuestion)
+	http.HandleFunc("/rest/get_next_questions", getNextQuestions)
 	http.HandleFunc("/rest/list_learning", listLearningQuestion)
 	http.HandleFunc("/rest/submit_answer", submitAnswer)
 

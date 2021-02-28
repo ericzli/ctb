@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -29,7 +30,7 @@ func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 		encoder.Encode(&rsp)
 	}()
 
-	user_id := getUserId(r)
+	userId := getUserId(r)
 
 	body, err := ioutil.ReadAll(r.Body)
 	check(err)
@@ -64,8 +65,8 @@ func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 	checkf(err, "insert question failed")
 	lastInsertID, err := result.LastInsertId()
 	checkf(err, "get lastInsertID failed")
-	fmt.Printf("Insert choice question success, id = %d, user = %d\n", lastInsertID, user_id)
-	_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user_id,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, user_id, req.RestCount)
+	fmt.Printf("Insert choice question success, id = %d, user = %d\n", lastInsertID, userId)
+	_, err = s_DB.Exec("insert INTO ctb_answer_record(question_id,user_id,rest_cnt,next_time) values(?,?,?,now())", lastInsertID, userId, req.RestCount)
 	checkf(err, "insert record failed")
 }
 
@@ -106,7 +107,7 @@ func removeRepeatedElement(arr []string) (newArr []string) {
 }
 
 func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
-	user_id := getUserId(r)
+	userId := getUserId(r)
 	var rsp struct {
 		Id          int      `json:"id"`
 		Type        int      `json:"type"`
@@ -116,16 +117,16 @@ func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
 		WrongAnswer string
 	}
 
-	row := s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", user_id)
+	row := s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", userId)
 	var restCount int
 	if err := row.Scan(&restCount); err != nil {
 		panic("get rest count failed")
 	}
 	if restCount > 10 {
 		row = s_DB.QueryRow(`select * from (select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0
-			order by next_time limit 10) a order by rand() limit 1`, user_id)
+			order by next_time limit 10) a order by rand() limit 1`, userId)
 	} else {
-		row = s_DB.QueryRow(`select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1`, user_id)
+		row = s_DB.QueryRow(`select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1`, userId)
 	}
 	if err := row.Scan(&rsp.Id); err != nil {
 		return 0, nil
@@ -150,24 +151,19 @@ func shuffleStrings(cards []string) {
 }
 
 func getLearningChoiceQuestions(r *http.Request) []interface{} {
-	user_id := getUserId(r)
+	userId := getUserId(r)
 	result := []interface{}{}
 
 	rows, err := s_DB.Query(`select question_id, question, rest_cnt, right_cnt, wrong_cnt from ctb_answer_record, ctb_choice_question
-		where id = question_id and user_id = ? and rest_cnt > 0 limit 1000`, user_id)
+		where id = question_id and user_id = ? and rest_cnt > 0 limit 1000`, userId)
 	if rows != nil {
 		defer rows.Close()
 	}
-	if err != nil {
-		panic("query learning question list from db failed")
-	}
+	checkf(err, "query learning question list from db failed")
 	for rows.Next() {
 		var id, cnt, right, wrong int
 		var question string
-		err = rows.Scan(&id, &question, &cnt, &right, &wrong)
-		if err != nil {
-			panic(fmt.Sprintf("scan failed: %v", err))
-		}
+		checkf(rows.Scan(&id, &question, &cnt, &right, &wrong), "scan failed")
 		result = append(result, &struct {
 			Id         int    `json:"id"`
 			Question   string `json:"question"`
@@ -183,7 +179,7 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 	defer errRecover4Rest(w)
 
 	id := r.FormValue("id")
-	user_id := getUserId(r)
+	userId := getUserId(r)
 	chosen := strings.Split(r.FormValue("chosen"), ",")
 	sort.Strings(chosen)
 	row := s_DB.QueryRow("select right_answer from ctb_choice_question where id = ?", id)
@@ -225,16 +221,72 @@ func submitAnswer(w http.ResponseWriter, r *http.Request) {
 					when 8 then 60
 					when 9 then 20
 					else 5 end
-				) minute), right_cnt = right_cnt + 1 where question_id = ? and user_id = ?`, id, user_id)
+				) minute), right_cnt = right_cnt + 1 where question_id = ? and user_id = ?`, id, userId)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
 			}
 		} else {
 			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now(), wrong_cnt = wrong_cnt + 1 where question_id = ? and user_id = ?",
-				id, user_id)
+				id, userId)
 			if err != nil {
 				fmt.Printf("update answer record failed, %v\n", err)
 			}
 		}
 	}()
+}
+
+func shuffleInterfaces(cards []interface{}) {
+	var size int = len(cards)
+	var j int = 0
+
+	for i, _ := range cards {
+		j = rand.Intn(size-i) + i
+		cards[i], cards[j] = cards[j], cards[i]
+	}
+}
+
+func getNextQuestions(w http.ResponseWriter, r *http.Request) {
+	defer errRecover4Rest(w)
+
+	var rsp struct {
+		Result    string        `json:"result"`
+		RestCount int           `json:"rest_count"`
+		Questions []interface{} `json:"questions"`
+	}
+
+	userId := getUserId(r)
+	count, err := strconv.Atoi(r.FormValue("count"))
+	if err != nil {
+		count = 1
+	}
+	if count > 500 {
+		count = 500
+	}
+
+	rows, err := s_DB.Query(`select question_id, question, type, right_answer, wrong_answer from ctb_answer_record, ctb_choice_question
+		where id = question_id and user_id = ? and rest_cnt > 0 and next_time < now() limit ?`, userId, count)
+	if rows != nil {
+		defer rows.Close()
+	}
+	checkf(err, "query question list from db failed")
+	for rows.Next() {
+		var id, qtype int
+		var question, right_answer, wrong_answer string
+		checkf(rows.Scan(&id, &question, &qtype, &right_answer, &wrong_answer), "scan failed")
+		rsp.Questions = append(rsp.Questions, &struct {
+			Id           int      `json:"id"`
+			Type         int      `json:"type"`
+			Question     string   `json:"question"`
+			RightOptions []string `json:"right_options"`
+			WrongOptions []string `json:"wrong_options"`
+		}{id, qtype, question, strings.Split(right_answer, ","), strings.Split(wrong_answer, ",")})
+	}
+	row := s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", userId)
+	checkf(row.Scan(&rsp.RestCount), "get rest count failed")
+	shuffleInterfaces(rsp.Questions)
+
+	rsp.Result = "ok"
+	b, err := json.Marshal(&rsp)
+	checkf(err, "marshal json failed")
+	w.Write(b)
 }
