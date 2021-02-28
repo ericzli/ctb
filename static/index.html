@@ -8,60 +8,60 @@
         <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
         <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
         <script src="thirdparty/vue.min.js"></script>
+        <style>
+            #id_question_choice { font-size:30px }
+            #id_question_choice button { font-size:30px; padding-left: 40px; padding-right: 40px }
+            #id_question_content>img { padding-bottom: 10px }
+            #id_choices .checkbox label { padding-left: 50px }
+            #id_choices .checkbox input { zoom:200% }
+        </style>
     </head>
     <body>
+        <div id="id_app">
+            <table width="100%">
+                <tr>
+                    <td width="70">
+                        <div class="btn-group" style="margin-right: 20px">
+                            <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">三
+                                <span class="caret"></span>
+                            </button>
+                            <ul class="dropdown-menu" role="menu" style="font-size: 24px">
+                                <li><a href="/static/add_wrong_character.html">录入-别字</a></li>
+                                <li><a href="/static/add_wrong_pinyin.html">录入-拼音</a></li>
+                                <li><a href="/static/add_choice_question_text.html">录入-选择题(纯文本)</a></li>
+                                <li class="divider"></li>
+                                <li><a href="/static/list_learning.html">学习中的错题</a></li>
+                                <li class="divider"></li>
+                                <li><a href="/static/user.html">用户</a></li>
+                                <li><a href="/static/about.html">关于</a></li>
+                            </ul>
+                        </div>
+                    </td>
+                    <td><button class="btn btn-block btn-primary" onclick="location.reload()">刷新 (剩余:{{rest_count}})</button></td>
+                    <td width="10px" style="padding-left:5px; max-width:100px"><label>[{{user}}]</label></td>
+                </tr>
+            </table>
 
-        <table width="100%">
-            <tr>
-                <td width="70">
-                    <div class="btn-group" style="margin-right: 20px">
-                        <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">三
-                            <span class="caret"></span>
-                        </button>
-                        <ul class="dropdown-menu" role="menu" style="font-size: 24px">
-                            <li><a href="/static/add_wrong_character.html">录入-别字</a></li>
-                            <li><a href="/static/add_wrong_pinyin.html">录入-拼音</a></li>
-                            <li><a href="/static/add_choice_question_text.html">录入-选择题(纯文本)</a></li>
-                            <li class="divider"></li>
-                            <li><a href="/static/list_learning.html">学习中的错题</a></li>
-                            <li class="divider"></li>
-                            <li><a href="/static/user.html">用户</a></li>
-                            <li><a href="/static/about.html">关于</a></li>
-                        </ul>
+            <div id="id_question_choice">
+                <p v-show="rest_count==0 && !b_loading">任务完成</p>
+                <p v-show="cur.id==0 && b_loading">加载中...</p>
+                <div v-show="cur.id">
+                    <p id="id_question_content"></p>
+                    <div id="id_choices">
+                        <div class="checkbox" v-bind:class="{'bg-success': option.val && cur.b_answered}" v-for="option in cur.options">
+                            <label><input type="checkbox" onchange="onCheck()" value="{{option.val}}">{{option.str}}</label>
+                        </div> 
                     </div>
-                </td>
-                <td><button class="btn btn-block btn-primary" onclick="location.reload()">刷新 (剩余:{{rest_count}})</button></td>
-                <td width="10px" style="padding-left:5px; max-width:100px"><label>[{{user}}]</label></td>
-            </tr>
-        </table>
-
-        <div id="id_question_choice">
-            <style>
-                #id_question_choice { font-size:30px }
-                #id_question_choice button { font-size:30px; padding-left: 40px; padding-right: 40px }
-                #id_question_content>img { padding-bottom: 10px }
-                #id_choices .checkbox label { padding-left: 50px }
-                #id_choices .checkbox input { zoom:200% }
-            </style>
-            <p v-show="rest_count==0 && !b_loading">任务完成</p>
-            <p v-show="cur.id==0 && b_loading">加载中...</p>
-            <div v-show="cur.id">
-                <p id="id_question_content"></p>
-                <div id="id_choices">
-                    <div class="checkbox" v-bind:class="{'bg-success': option.val && cur.b_answered}" v-for="option in cur.options">
-                        <label><input type="checkbox" onchange="onCheck()" value="{{option.val}}">{{option.str}}</label>
-                    </div> 
+                    <button :disabled="cur.b_answered || !cur.sel_cnt" class="btn btn-success" onclick="submitAnswer()">提交</button>
+                    <label v-show="cur.b_answered && cur.b_right" class="text-success">正确</label>
+                    <label v-show="cur.b_answered && !cur.b_right" class="text-danger">错误</label>
+                    <button v-show="cur.b_answered" class="btn" onclick="nextQuestion()">下题</button>
                 </div>
-                <button :disabled="cur.b_answered || !cur.sel_cnt" class="btn btn-success" onclick="submitAnswer()">提交</button>
-                <label v-show="cur.b_answered && cur.b_right" class="text-success">正确</label>
-                <label v-show="cur.b_answered && !cur.b_right" class="text-danger">错误</label>
-                <button v-show="cur.b_answered" class="btn" onclick="nextQuestion()">下题</button>
             </div>
         </div>
-
         <script>
             var vm = new Vue({
-                el: "body", methods: {},
+                el: "#id_app",
                 data: {
                     rest_count: "",
                     user: "",
