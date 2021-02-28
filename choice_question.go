@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net/http"
 	"runtime/debug"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -106,50 +105,6 @@ func removeRepeatedElement(arr []string) (newArr []string) {
 	return
 }
 
-func getNextChoiceQuestion(r *http.Request) (int, interface{}) {
-	userId := getUserId(r)
-	var rsp struct {
-		Id          int      `json:"id"`
-		Type        int      `json:"type"`
-		Question    string   `json:"question"`
-		Choices     []string `json:"choices"`
-		RightAnswer string
-		WrongAnswer string
-	}
-
-	row := s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", userId)
-	var restCount int
-	if err := row.Scan(&restCount); err != nil {
-		panic("get rest count failed")
-	}
-	if restCount > 10 {
-		row = s_DB.QueryRow(`select * from (select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0
-			order by next_time limit 10) a order by rand() limit 1`, userId)
-	} else {
-		row = s_DB.QueryRow(`select question_id from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0 order by next_time limit 1`, userId)
-	}
-	if err := row.Scan(&rsp.Id); err != nil {
-		return 0, nil
-	}
-	row = s_DB.QueryRow("select type, question, right_answer, wrong_answer from ctb_choice_question where id = ?", rsp.Id)
-	if err := row.Scan(&rsp.Type, &rsp.Question, &rsp.RightAnswer, &rsp.WrongAnswer); err != nil {
-		panic(fmt.Sprintf("question %d not exists", rsp.Id))
-	}
-	rsp.Choices = append(strings.Split(rsp.RightAnswer, ","), strings.Split(rsp.WrongAnswer, ",")...)
-	shuffleStrings(rsp.Choices)
-	return restCount, rsp
-}
-
-func shuffleStrings(cards []string) {
-	var size int = len(cards)
-	var j int = 0
-
-	for i, _ := range cards {
-		j = rand.Intn(size-i) + i
-		cards[i], cards[j] = cards[j], cards[i]
-	}
-}
-
 func getLearningChoiceQuestions(r *http.Request) []interface{} {
 	userId := getUserId(r)
 	result := []interface{}{}
@@ -175,66 +130,6 @@ func getLearningChoiceQuestions(r *http.Request) []interface{} {
 	return result
 }
 
-func submitAnswer(w http.ResponseWriter, r *http.Request) {
-	defer errRecover4Rest(w)
-
-	id := r.FormValue("id")
-	userId := getUserId(r)
-	chosen := strings.Split(r.FormValue("chosen"), ",")
-	sort.Strings(chosen)
-	row := s_DB.QueryRow("select right_answer from ctb_choice_question where id = ?", id)
-	var correctAnswer string
-	checkf(row.Scan(&correctAnswer), "question not exist")
-	correct := strings.Split(correctAnswer, ",")
-	sort.Strings(correct)
-	var rsp struct {
-		Result  string `json:"result"`
-		Correct bool   `json:"correct"`
-		Detail  string `json:"detail"`
-	}
-	if len(chosen) == len(correct) {
-		rsp.Correct = true
-		for i := range chosen {
-			if chosen[i] != correct[i] {
-				rsp.Correct = false
-			}
-		}
-	}
-	rsp.Result = "ok"
-	rsp.Detail = fmt.Sprintf("答案：%s", correctAnswer)
-	b, err := json.Marshal(&rsp)
-	checkf(err, "marshal json failed")
-	w.Write(b)
-
-	// 另起协程让页面响应更快
-	go func() {
-		if rsp.Correct {
-			// 按记忆曲线更新下次学习的时间
-			_, err := s_DB.Exec(`update ctb_answer_record set rest_cnt = rest_cnt - 1, next_time = date_add(now(), interval (case rest_cnt
-					when 1 then 14*24*60
-					when 2 then 5*24*60
-					when 3 then 2*24*60
-					when 4 then 24*60
-					when 5 then 12*60
-					when 6 then 10*60
-					when 7 then 3*60
-					when 8 then 60
-					when 9 then 20
-					else 5 end
-				) minute), right_cnt = right_cnt + 1 where question_id = ? and user_id = ?`, id, userId)
-			if err != nil {
-				fmt.Printf("update answer record failed, %v\n", err)
-			}
-		} else {
-			_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now(), wrong_cnt = wrong_cnt + 1 where question_id = ? and user_id = ?",
-				id, userId)
-			if err != nil {
-				fmt.Printf("update answer record failed, %v\n", err)
-			}
-		}
-	}()
-}
-
 func shuffleInterfaces(cards []interface{}) {
 	var size int = len(cards)
 	var j int = 0
@@ -249,9 +144,10 @@ func getNextQuestions(w http.ResponseWriter, r *http.Request) {
 	defer errRecover4Rest(w)
 
 	var rsp struct {
-		Result    string        `json:"result"`
-		RestCount int           `json:"rest_count"`
-		Questions []interface{} `json:"questions"`
+		Result         string        `json:"result"`
+		RestCount      int           `json:"rest_count"`
+		TotalRestCount int           `json:"total_rest_count"`
+		Questions      []interface{} `json:"questions"`
 	}
 
 	userId := getUserId(r)
@@ -282,9 +178,11 @@ func getNextQuestions(w http.ResponseWriter, r *http.Request) {
 			WrongOptions []string `json:"wrong_options"`
 		}{id, qtype, question, strings.Split(right_answer, ","), strings.Split(wrong_answer, ",")})
 	}
+	shuffleInterfaces(rsp.Questions)
 	row := s_DB.QueryRow("select count(0) from ctb_answer_record where user_id = ? and now() > next_time and rest_cnt > 0", userId)
 	checkf(row.Scan(&rsp.RestCount), "get rest count failed")
-	shuffleInterfaces(rsp.Questions)
+	row = s_DB.QueryRow("select sum(rest_cnt) from ctb_answer_record where user_id = ? and rest_cnt > 0", userId)
+	checkf(row.Scan(&rsp.TotalRestCount), "get total rest count failed")
 
 	rsp.Result = "ok"
 	b, err := json.Marshal(&rsp)

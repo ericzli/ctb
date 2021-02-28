@@ -37,7 +37,7 @@
                             </ul>
                         </div>
                     </td>
-                    <td><button class="btn btn-block btn-primary" onclick="location.reload()">刷新 (剩余:{{rest_count}})</button></td>
+                    <td><button class="btn btn-block btn-primary" onclick="location.reload()">刷新 (剩余:{{rest_count}}/{{total_rest}})</button></td>
                     <td width="10px" style="padding-left:5px; max-width:100px"><label>[{{user}}]</label></td>
                 </tr>
             </table>
@@ -63,7 +63,8 @@
             var vm = new Vue({
                 el: "#id_app",
                 data: {
-                    rest_count: "",
+                    rest_count: 0,
+                    total_rest: 0,
                     user: "",
                     questions: [],
                     b_loading: false,
@@ -100,6 +101,7 @@
                     success: function (data) {
                         if (data.result != "ok") { alert(data.result); return; }
                         vm.rest_count = data.rest_count;
+                        vm.total_rest = data.total_rest_count;
                         vm.noMoreQuestion = true;
                         data.questions.forEach(function(v){
                             var found = false;
@@ -150,7 +152,7 @@
                 });
                 vm.cur.b_answered = true;
                 vm.submitQueue.push({id: vm.cur.id, right: vm.cur.b_right});
-                if (vm.cur.b_right) vm.rest_count--;
+                if (vm.cur.b_right) { vm.rest_count--; vm.total_rest--; }
                 vm.noMoreQuestion = false;
                 checkAjax();
             }

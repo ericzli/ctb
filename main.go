@@ -23,10 +23,8 @@ func main() {
 	})
 	http.HandleFunc("/rest/register_or_login", handleRegisterOrLogin)
 	http.HandleFunc("/rest/add_choice_question", handleAddChoiceQuestion)
-	http.HandleFunc("/rest/get_next_question", getNextQuestion)
 	http.HandleFunc("/rest/get_next_questions", getNextQuestions)
 	http.HandleFunc("/rest/list_learning", listLearningQuestion)
-	http.HandleFunc("/rest/submit_answer", submitAnswer)
 	http.HandleFunc("/rest/update_learn_status", updateLearnStatus)
 
 	g_Conf.ListenAddr = ":8080"
@@ -44,30 +42,6 @@ func main() {
 	if err != nil {
 		fmt.Println("Listen failed:", err)
 	}
-}
-
-func getNextQuestion(w http.ResponseWriter, r *http.Request) {
-	defer errRecover4Rest(w)
-
-	var rsp struct {
-		Result       string      `json:"result"`
-		RestCount    int         `json:"rest_count"`
-		QuestionInfo interface{} `json:"question_info"`
-	}
-	cnt, questionInfo := getNextChoiceQuestion(r)
-	if rsp.RestCount == 0 && cnt > 0 {
-		rsp.QuestionInfo = questionInfo
-	}
-	rsp.RestCount += cnt
-
-	// get other type of questions ...
-
-	rsp.Result = "ok"
-	b, err := json.Marshal(&rsp)
-	if err != nil {
-		panic(fmt.Sprintf("marshal json failed: %v", err))
-	}
-	w.Write(b)
 }
 
 func listLearningQuestion(w http.ResponseWriter, r *http.Request) {
