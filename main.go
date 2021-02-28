@@ -27,6 +27,7 @@ func main() {
 	http.HandleFunc("/rest/get_next_questions", getNextQuestions)
 	http.HandleFunc("/rest/list_learning", listLearningQuestion)
 	http.HandleFunc("/rest/submit_answer", submitAnswer)
+	http.HandleFunc("/rest/update_learn_status", updateLearnStatus)
 
 	g_Conf.ListenAddr = ":8080"
 	g_Conf.DbUri = "ctb:pass@tcp(localhost:8081)/ctb"

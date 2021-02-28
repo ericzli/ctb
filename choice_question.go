@@ -269,6 +269,7 @@ func getNextQuestions(w http.ResponseWriter, r *http.Request) {
 		defer rows.Close()
 	}
 	checkf(err, "query question list from db failed")
+	rsp.Questions = []interface{}{}
 	for rows.Next() {
 		var id, qtype int
 		var question, right_answer, wrong_answer string
@@ -289,4 +290,39 @@ func getNextQuestions(w http.ResponseWriter, r *http.Request) {
 	b, err := json.Marshal(&rsp)
 	checkf(err, "marshal json failed")
 	w.Write(b)
+}
+
+func updateLearnStatus(w http.ResponseWriter, r *http.Request) {
+	defer errRecover4Rest(w)
+
+	id := r.FormValue("id")
+	userId := getUserId(r)
+	row := s_DB.QueryRow("select question_id from ctb_answer_record where question_id = ? and user_id = ? and next_time < now()", id, userId)
+	var checkId int
+	checkf(row.Scan(&checkId), "invalid question to update")
+
+	if r.FormValue("right") == "true" {
+		// 按记忆曲线更新下次学习的时间
+		_, err := s_DB.Exec(`update ctb_answer_record set rest_cnt = rest_cnt - 1, next_time = date_add(now(), interval (case rest_cnt
+					when 1 then 14*24*60
+					when 2 then 5*24*60
+					when 3 then 2*24*60
+					when 4 then 24*60
+					when 5 then 12*60
+					when 6 then 10*60
+					when 7 then 3*60
+					when 8 then 60
+					when 9 then 20
+					else 5 end
+				) minute), right_cnt = right_cnt + 1 where question_id = ? and user_id = ?`, id, userId)
+		if err != nil {
+			fmt.Printf("update answer record failed, %v\n", err)
+		}
+	} else {
+		_, err := s_DB.Exec("update ctb_answer_record set rest_cnt = rest_cnt + 5, next_time = now(), wrong_cnt = wrong_cnt + 1 where question_id = ? and user_id = ?",
+			id, userId)
+		if err != nil {
+			fmt.Printf("update answer record failed, %v\n", err)
+		}
+	}
 }

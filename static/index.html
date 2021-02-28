@@ -49,13 +49,13 @@
                     <p id="id_question_content"></p>
                     <div id="id_choices">
                         <div class="checkbox" v-bind:class="{'bg-success': option.val && cur.b_answered}" v-for="option in cur.options">
-                            <label><input type="checkbox" onchange="onCheck()" value="{{option.val}}">{{option.str}}</label>
+                            <label><input type="checkbox" onchange="onCheck()" :value="option.val">{{option.str}}</label>
                         </div> 
                     </div>
                     <button :disabled="cur.b_answered || !cur.sel_cnt" class="btn btn-success" onclick="submitAnswer()">提交</button>
                     <label v-show="cur.b_answered && cur.b_right" class="text-success">正确</label>
                     <label v-show="cur.b_answered && !cur.b_right" class="text-danger">错误</label>
-                    <button v-show="cur.b_answered" class="btn" onclick="nextQuestion()">下题</button>
+                    <button v-show="cur.b_answered" class="btn" onclick="getNextQuestionFromCache()">下题</button>
                 </div>
             </div>
         </div>
@@ -74,7 +74,7 @@
                         b_answered: false,
                         b_right: false,
                     },
-                    last_submit: 0,
+                    submitQueue: [],
                 }
             });
 
@@ -100,15 +100,23 @@
                     success: function (data) {
                         if (data.result != "ok") { alert(data.result); return; }
                         vm.rest_count = data.rest_count;
+                        vm.noMoreQuestion = true;
                         data.questions.forEach(function(v){
                             var found = false;
                             vm.questions.forEach((a)=>{if(a.id==v.id)found=true});
-                            if (!found && v.id != vm.last_submit) vm.questions.push(v);
+                            vm.submitQueue.forEach((a)=>{if(a.id==v.id)found=true});
+                            if (!found && v.id != vm.cur.id) {
+                                vm.questions.push(v);
+                                vm.noMoreQuestion = false;
+                            }
                         });
                         if (vm.cur.id == 0) getNextQuestionFromCache();
                     },
                     error: function (data) { alert(data.result); },
-                    complete: function(data) { vm.b_loading = false; }
+                    complete: function(data) {
+                        vm.b_loading = false;
+                        checkAjax();
+                    }
                 });
             }
 
@@ -126,6 +134,7 @@
                 first.wrong_options.forEach((v)=>{options.push({val: false, str: v})});
                 options.shuffle();
                 vm.cur.options = options;
+                $("#id_choices input:checked").each(function(){this.checked = false});
             }
 
             function onCheck() {
@@ -140,24 +149,33 @@
                     }
                 });
                 vm.cur.b_answered = true;
-                vm.last_submit = vm.cur.id;
-                $.ajax({
-                    url : "/rest/submit_answer?id="+vm.cur.id+"&user="+vm.user+"&chosen="+chosen,
-                    dataType : "json",
-                    success: function (data) {
-                        if (data.result != "ok") {
-                            alert(data.result)
-                            return;
-                        }
-                        if (data.correct != vm.cur.b_right) alert("前后台答案不一致");
-                    }
-                });
+                vm.submitQueue.push({id: vm.cur.id, right: vm.cur.b_right});
+                if (vm.cur.b_right) vm.rest_count--;
+                vm.noMoreQuestion = false;
+                checkAjax();
             }
 
-            function nextQuestion() {
-                if (vm.cur.b_right) vm.rest_count--;
-                getNextQuestionFromCache();
-                if (vm.questions.length < 5) getNewQuestion(10);
+            function checkAjax() {
+                if (vm.b_loading) return;
+                if (vm.submitQueue.length > 0) {
+                    vm.b_loading = true;
+                    var first = vm.submitQueue.shift();
+                    $.ajax({
+                        url : "/rest/update_learn_status?id="+first.id+"&user="+vm.user+"&right="+first.right,
+                        dataType : "json",
+                        success: function (data) {
+                            if (data.result != "ok") { alert(data.result); return; }
+                        },
+                        complete: function(data) {
+                            vm.b_loading = false;
+                            checkAjax();
+                        }
+                    });
+                    return;
+                }
+                if (vm.noMoreQuestion) return;
+                if (vm.questions.length < 2) getNewQuestion(5);
+                else if (vm.questions.length < 5) getNewQuestion(7);
             }
 
             Array.prototype.shuffle = function() {
