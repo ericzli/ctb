@@ -9,9 +9,12 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
+
+var sLastClearTime time.Time
 
 func handleAddChoiceQuestion(w http.ResponseWriter, r *http.Request) {
 	defer func() {
@@ -198,8 +201,9 @@ func updateLearnStatus(w http.ResponseWriter, r *http.Request) {
 	row := s_DB.QueryRow("select question_id from ctb_answer_record where question_id = ? and user_id = ? and next_time < now()", id, userId)
 	var checkId int
 	checkf(row.Scan(&checkId), "invalid question to update")
+	bRight := r.FormValue("right") == "true"
 
-	if r.FormValue("right") == "true" {
+	if bRight {
 		// 按记忆曲线更新下次学习的时间
 		_, err := s_DB.Exec(`update ctb_answer_record set rest_cnt = rest_cnt - 1, next_time = date_add(now(), interval (case rest_cnt
 					when 1 then 14*24*60
@@ -221,6 +225,20 @@ func updateLearnStatus(w http.ResponseWriter, r *http.Request) {
 			id, userId)
 		if err != nil {
 			fmt.Printf("update answer record failed, %v\n", err)
+		}
+	}
+	_, err := s_DB.Exec("insert into ctb_answer_record_detail(question_id,user_id,is_right) values(?,?,?)", id, userId, bRight)
+	if err != nil {
+		fmt.Printf("update answer record detail failed, %v\n", err)
+	}
+	if time.Since(sLastClearTime) > 24*time.Hour {
+		sLastClearTime = time.Now()
+		res, err := s_DB.Exec("delete from ctb_answer_record_detail where TO_DAYS(NOW())-TO_DAYS(time) > 30")
+		if err != nil {
+			fmt.Printf("Delete old data from ctb_answer_record_detail failed: %v\n", err)
+		} else {
+			n, _ := res.RowsAffected()
+			fmt.Printf("Delete %d rows old data from ctb_answer_record_detail\n", n)
 		}
 	}
 }

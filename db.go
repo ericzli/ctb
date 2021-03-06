@@ -44,4 +44,12 @@ CREATE TABLE `ctb_answer_record` (
 	PRIMARY KEY (`question_id`,`user_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
 partition by hash(user_id) partitions 3;
+
+CREATE TABLE `ctb_answer_record_detail` (
+	`question_id` int(11) NOT NULL,
+	`user_id`  int(11) NOT NULL,
+	`time` datetime DEFAULT NOW(),
+	`is_right` boolean NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+partition by hash(user_id) partitions 2;
 */
